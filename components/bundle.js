@@ -1,4 +1,4 @@
-/* @ds-bundle: {"format":4,"namespace":"SantiGlass","components":[{"name":"GlassToggle"},{"name":"Button"},{"name":"GlassCard"},{"name":"Switch"},{"name":"SegmentedControl"},{"name":"Slider"},{"name":"SearchField"},{"name":"List"},{"name":"ListRow"},{"name":"TabBar"},{"name":"Icon"}]} */
+/* @ds-bundle: {"format":4,"namespace":"SantiGlass","components":[{"name":"GlassToggle"},{"name":"GlassScene"},{"name":"Button"},{"name":"GlassCard"},{"name":"Switch"},{"name":"SegmentedControl"},{"name":"Slider"},{"name":"SearchField"},{"name":"List"},{"name":"ListRow"},{"name":"TabBar"},{"name":"Icon"}]} */
 (function () {
   var React = window.React;
   var h = React.createElement;
@@ -6,6 +6,7 @@
   var useEffect = React.useEffect;
   var useLayoutEffect = React.useLayoutEffect;
   var useRef = React.useRef;
+  var useContext = React.useContext;
 
   function cx() {
     return Array.prototype.filter.call(arguments, Boolean).join(' ');
@@ -31,6 +32,12 @@
       }
     ];
   }
+
+  /* ------------------------------------------------------------------
+     platform
+     ------------------------------------------------------------------ */
+  var IS_TAURI = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
+  if (IS_TAURI) document.documentElement.setAttribute('data-tauri', '');
 
   /* ------------------------------------------------------------------
      liquid glass setting: one system-wide switch, on by default.
@@ -79,7 +86,7 @@
     listeners.slice().forEach(function (fn) { fn(on); });
   }
 
-  function subscribe(fn) {
+  function subscribeLiquidGlass(fn) {
     listeners.push(fn);
     return function () {
       var i = listeners.indexOf(fn);
@@ -91,24 +98,88 @@
     var s = useState(glassOn);
     useEffect(function () {
       s[1](glassOn);
-      return subscribe(function (v) { s[1](v); });
+      return subscribeLiquidGlass(function (v) { s[1](v); });
     }, []);
     return [s[0], setLiquidGlass];
   }
 
   /* ------------------------------------------------------------------
-     lens engine: physically based refraction through a convex glass rim.
-     per element it builds a displacement map (snell's law over a squircle
-     bezel profile), a specular rim map, and an svg filter that splits rgb
-     for dispersion. applied with backdrop-filter: url(#id) where the engine
-     supports it (chromium: chrome, edge, electron, webview2). elsewhere the
-     css blur fallback in bundle.css is used.
+     tauri: keep the native window material (mica / vibrancy) in step with
+     the liquid glass toggle. the rust side exposes a command (default name
+     set_liquid_glass) that applies or clears the effect; see docs/tauri.md.
+     ------------------------------------------------------------------ */
+  function tauriInvoke() {
+    if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) return window.__TAURI__.core.invoke;
+    if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) return window.__TAURI_INTERNALS__.invoke;
+    return null;
+  }
+
+  function syncTauriWindowGlass(opts) {
+    var command = (opts && opts.command) || 'set_liquid_glass';
+    var invoke = (opts && opts.invoke) || tauriInvoke();
+    if (!invoke) return function () {};
+    var root = document.documentElement;
+    function apply(on) {
+      Promise.resolve(invoke(command, { on: on })).then(function () {
+        if (on) root.setAttribute('data-window-glass', '');
+        else root.removeAttribute('data-window-glass');
+      }, function (err) {
+        root.removeAttribute('data-window-glass');
+        console.warn('[santi.glass] window glass unavailable:', err);
+      });
+    }
+    apply(glassOn);
+    return subscribeLiquidGlass(apply);
+  }
+
+  /* ------------------------------------------------------------------
+     shared lens optics
+     squircle bezel: height y(t) = (1 - (1 - t)^4)^(1/4), t = 0 at the rim.
+     the same curve drives the svg lens and the gpu shaders.
+     ------------------------------------------------------------------ */
+  function slopeAt(t) {
+    t = Math.min(Math.max(t, 0.002), 1);
+    var a = 1 - t;
+    var inner = 1 - a * a * a * a;
+    return (a * a * a) * Math.pow(inner, -0.75);
+  }
+
+  function bend(t, ior) {
+    var a = 1 - t;
+    var hgt = Math.pow(Math.max(1 - a * a * a * a, 0), 0.25);
+    var th1 = Math.atan(slopeAt(t));
+    var th2 = Math.asin(Math.min(1, Math.sin(th1) / ior));
+    return Math.tan(th1 - th2) * (0.35 + hgt);
+  }
+
+  function num(style, name, fallback) {
+    var v = parseFloat(style.getPropertyValue(name));
+    return isNaN(v) ? fallback : v;
+  }
+
+  function readLensTokens(el) {
+    var s = getComputedStyle(el);
+    return {
+      bezel: num(s, '--lens-bezel', 28),
+      depth: num(s, '--lens-depth', 26),
+      ior: num(s, '--lens-ior', 1.5),
+      aberration: num(s, '--lens-aberration', 0.12),
+      frost: num(s, '--lens-frost', 1.5),
+      frostStrong: num(s, '--lens-frost-strong', 7),
+      specular: num(s, '--lens-specular', 0.6),
+      saturation: num(s, '--lens-saturation', 1.5)
+    };
+  }
+
+  /* ------------------------------------------------------------------
+     svg lens: refracts live page content through backdrop-filter: url().
+     chromium only (chrome, edge, electron, webview2 / tauri on windows).
      ------------------------------------------------------------------ */
   var SVGNS = 'http://www.w3.org/2000/svg';
   var uid = 0;
   var mapCache = {};
 
-  var LENS_SUPPORTED = (function () {
+  var SVG_LENS = (function () {
     try {
       if (!window.CSS || !CSS.supports('backdrop-filter', 'url(#a)')) return false;
       var brands = navigator.userAgentData && navigator.userAgentData.brands;
@@ -119,40 +190,7 @@
       return false;
     }
   })();
-  document.documentElement.setAttribute('data-lens', LENS_SUPPORTED ? 'refract' : 'blur');
-
-  function num(style, name, fallback) {
-    var v = parseFloat(style.getPropertyValue(name));
-    return isNaN(v) ? fallback : v;
-  }
-
-  function readParams(el, strong) {
-    var s = getComputedStyle(el);
-    return {
-      bezel: num(s, '--lens-bezel', 22),
-      depth: num(s, '--lens-depth', 20),
-      ior: num(s, '--lens-ior', 1.5),
-      aberration: num(s, '--lens-aberration', 0.1),
-      frost: strong ? num(s, '--lens-frost-strong', 8) : num(s, '--lens-frost', 1.5),
-      specular: num(s, '--lens-specular', 0.6),
-      saturation: num(s, '--lens-saturation', 1.5)
-    };
-  }
-
-  // squircle bezel: height y(t) = (1 - (1 - t)^4)^(1/4), t = 0 at the rim, 1 where the flat top begins
-  function slopeAt(t) {
-    t = Math.min(Math.max(t, 0.002), 1);
-    var a = 1 - t;
-    var inner = 1 - a * a * a * a;
-    return (a * a * a) * Math.pow(inner, -0.75);
-  }
-
-  function bend(t, ior) {
-    var h = Math.pow(1 - Math.pow(1 - t, 4), 0.25); // local glass height, 0 at the rim, 1 on the flat top
-    var th1 = Math.atan(slopeAt(t));
-    var th2 = Math.asin(Math.min(1, Math.sin(th1) / ior));
-    return Math.tan(th1 - th2) * (0.35 + h);
-  }
+  document.documentElement.setAttribute('data-lens', SVG_LENS ? 'refract' : 'blur');
 
   function buildMaps(W, H, R, p) {
     var key = [W, H, R, p.bezel, p.depth, p.ior, p.specular].join('|');
@@ -186,20 +224,15 @@
           dist = qy - R;
           nx = 0; ny = sy;
         }
-        var d = -dist; // distance inward from the rim
+        var d = -dist;
         if (d <= 0 || d >= bezel) continue;
         var t = d / bezel;
 
-        // refraction: normal tilt from the profile slope, snell's law for the bent ray, integrated over
-        // the glass thickness. the physical curve is normalized against the rim value and widened so the
-        // band reads at ui scale; lens-depth is the peak displacement in px.
         var disp = p.depth * Math.pow(bend(t, p.ior) / rimBend, 0.45);
-        // sample inward so the rim shows compressed content from under the glass
         vx[i] = -nx * disp;
         vy[i] = -ny * disp;
         if (disp > maxD) maxD = disp;
 
-        // specular: fresnel-ish rim, strongest where the normal faces the light, a softer bounce opposite
         var facing = nx * lx + ny * ly;
         var rim = Math.pow(1 - t, 3);
         var edge = d < 1.5 ? 0.9 : 0;
@@ -258,7 +291,7 @@
     return r + ' 0 0 0 0  0 ' + g + ' 0 0 0  0 0 ' + b + ' 0 0  0 0 0 1 0';
   }
 
-  function writeFilter(id, W, H, maps, p) {
+  function writeFilter(id, W, H, maps, p, frost) {
     var root = defsRoot();
     var f = document.getElementById(id);
     if (!f) {
@@ -276,7 +309,7 @@
     f.setAttribute('primitiveUnits', 'userSpaceOnUse');
     f.setAttribute('color-interpolation-filters', 'sRGB');
     f.innerHTML =
-      '<feGaussianBlur in="SourceGraphic" stdDeviation="' + p.frost + '" edgeMode="duplicate" result="frost"/>' +
+      '<feGaussianBlur in="SourceGraphic" stdDeviation="' + frost + '" edgeMode="duplicate" result="frost"/>' +
       '<feImage href="' + maps.disp + '" x="0" y="0" width="' + W + '" height="' + H + '" preserveAspectRatio="none" result="map"/>' +
       '<feDisplacementMap in="frost" in2="map" scale="' + (s * (1 + a)).toFixed(2) + '" xChannelSelector="R" yChannelSelector="G" result="dR"/>' +
       '<feDisplacementMap in="frost" in2="map" scale="' + s.toFixed(2) + '" xChannelSelector="R" yChannelSelector="G" result="dG"/>' +
@@ -291,31 +324,586 @@
       '<feComposite in="spec" in2="sat" operator="over"/>';
   }
 
+  /* ------------------------------------------------------------------
+     gpu lens: a GlassScene renders its backdrop (image, video or canvas)
+     on the gpu and refracts it under every glass element inside it.
+     webgpu first (wgsl), webgl2 second (glsl), then the svg lens.
+     ------------------------------------------------------------------ */
+  var MAX_GLASS = 16;
+  var UNIFORM_FLOATS = (5 + MAX_GLASS * 2) * 4;
+
+  var WGSL = [
+    'struct U { p: array<vec4f, 5>, rects: array<vec4f, 16>, info: array<vec4f, 16> };',
+    '@group(0) @binding(0) var<uniform> u: U;',
+    '@group(0) @binding(1) var samp: sampler;',
+    '@group(0) @binding(2) var tex: texture_2d<f32>;',
+    '',
+    '@vertex fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {',
+    '  var pos = array<vec2f, 3>(vec2f(-1.0, -3.0), vec2f(-1.0, 1.0), vec2f(3.0, 1.0));',
+    '  return vec4f(pos[i], 0.0, 1.0);',
+    '}',
+    '',
+    'fn backdrop(p: vec2f) -> vec3f {',
+    '  let uv = (p - u.p[1].xy) / u.p[1].zw;',
+    '  return textureSampleLevel(tex, samp, uv, 0.0).rgb;',
+    '}',
+    '',
+    'fn slopeAt(t: f32) -> f32 {',
+    '  let tt = clamp(t, 0.002, 1.0);',
+    '  let a = 1.0 - tt;',
+    '  let inner = 1.0 - a * a * a * a;',
+    '  return a * a * a * pow(inner, -0.75);',
+    '}',
+    '',
+    'fn bend(t: f32, ior: f32) -> f32 {',
+    '  let a = 1.0 - t;',
+    '  let hgt = pow(max(1.0 - a * a * a * a, 0.0), 0.25);',
+    '  let th1 = atan(slopeAt(t));',
+    '  let th2 = asin(min(1.0, sin(th1) / ior));',
+    '  return tan(th1 - th2) * (0.35 + hgt);',
+    '}',
+    '',
+    'fn frosted(p: vec2f, radius: f32) -> vec3f {',
+    '  var acc = backdrop(p);',
+    '  if (radius < 0.5) { return acc; }',
+    '  for (var k = 0; k < 12; k++) {',
+    '    let fk = f32(k);',
+    '    let ang = fk * 2.39996;',
+    '    let r = radius * sqrt((fk + 0.5) / 12.0);',
+    '    acc += backdrop(p + vec2f(cos(ang), sin(ang)) * r);',
+    '  }',
+    '  return acc / 13.0;',
+    '}',
+    '',
+    '@fragment fn fs(@builtin(position) fc: vec4f) -> @location(0) vec4f {',
+    '  let p = fc.xy / u.p[0].z;',
+    '  var col = backdrop(p);',
+    '  let count = i32(u.p[0].w);',
+    '  for (var i = 0; i < 16; i++) {',
+    '    if (i >= count) { break; }',
+    '    let r = u.rects[i];',
+    '    let m = u.info[i];',
+    '    let hs = r.zw * 0.5;',
+    '    let c = r.xy + hs;',
+    '    let rad = min(m.x, min(hs.x, hs.y));',
+    '    let lp = p - c;',
+    '    let q = abs(lp) - (hs - vec2f(rad));',
+    '    let sg = vec2f(select(-1.0, 1.0, lp.x >= 0.0), select(-1.0, 1.0, lp.y >= 0.0));',
+    '    var d = 0.0;',
+    '    var n = vec2f(0.0, 0.0);',
+    '    if (q.x > 0.0 && q.y > 0.0) { let l = length(q); d = l - rad; n = sg * q / l; }',
+    '    else if (q.x > q.y) { d = q.x - rad; n = vec2f(sg.x, 0.0); }',
+    '    else { d = q.y - rad; n = vec2f(0.0, sg.y); }',
+    '    if (d > 0.5) { continue; }',
+    '    let inset = -d;',
+    '    let bezel = max(2.0, min(u.p[2].w, min(hs.x, hs.y) - 1.0));',
+    '    let t = clamp(inset / bezel, 0.0, 1.0);',
+    '    var disp = 0.0;',
+    '    if (t < 1.0) { disp = u.p[3].x * pow(max(bend(t, u.p[3].y) / u.p[4].w, 0.0), 0.45); }',
+    '    let frost = select(u.p[3].w, u.p[4].x, m.y > 0.5);',
+    '    let ab = u.p[3].z;',
+    '    var g = vec3f(frosted(p - n * disp * (1.0 + ab), frost).r, frosted(p - n * disp, frost).g, frosted(p - n * disp * (1.0 - ab), frost).b);',
+    '    let luma = dot(g, vec3f(0.2126, 0.7152, 0.0722));',
+    '    g = mix(vec3f(luma), g, u.p[4].z);',
+    '    let facing = dot(n, vec2f(-0.6, -0.8));',
+    '    let rim = pow(1.0 - t, 3.0);',
+    '    let k1 = pow(max(facing, 0.0), 1.6);',
+    '    let k2 = 0.45 * pow(max(-facing, 0.0), 2.0);',
+    '    let edge = 1.0 - smoothstep(0.0, 1.5, inset);',
+    '    var spec = min(1.0, (k1 + k2) * rim * 1.4 + edge * (0.35 + 0.65 * max(k1, k2)));',
+    '    if (u.p[2].z > 0.5) {',
+    '      let toP = u.p[2].xy - p;',
+    '      let dist = max(length(toP), 0.001);',
+    '      spec = min(1.0, spec + pow(max(dot(n, toP / dist), 0.0), 2.0) * rim * exp(-dist / 160.0) * 0.9);',
+    '    }',
+    '    g = mix(g, vec3f(1.0), spec * u.p[4].y);',
+    '    col = mix(col, clamp(g, vec3f(0.0), vec3f(1.0)), clamp(0.5 - d, 0.0, 1.0));',
+    '    break;',
+    '  }',
+    '  return vec4f(col, 1.0);',
+    '}'
+  ].join('\n');
+
+  var GLSL_VS = [
+    '#version 300 es',
+    'void main() {',
+    '  vec2 pos[3] = vec2[3](vec2(-1.0, -3.0), vec2(-1.0, 1.0), vec2(3.0, 1.0));',
+    '  gl_Position = vec4(pos[gl_VertexID], 0.0, 1.0);',
+    '}'
+  ].join('\n');
+
+  var GLSL_FS = [
+    '#version 300 es',
+    'precision highp float;',
+    'uniform vec4 u_p[5];',
+    'uniform vec4 u_rect[16];',
+    'uniform vec4 u_meta[16];',
+    'uniform sampler2D u_tex;',
+    'out vec4 outColor;',
+    '',
+    'vec3 backdrop(vec2 p) {',
+    '  vec2 uv = (p - u_p[1].xy) / u_p[1].zw;',
+    '  return textureLod(u_tex, uv, 0.0).rgb;',
+    '}',
+    '',
+    'float slopeAt(float t) {',
+    '  float tt = clamp(t, 0.002, 1.0);',
+    '  float a = 1.0 - tt;',
+    '  float inner = 1.0 - a * a * a * a;',
+    '  return a * a * a * pow(inner, -0.75);',
+    '}',
+    '',
+    'float bend(float t, float ior) {',
+    '  float a = 1.0 - t;',
+    '  float hgt = pow(max(1.0 - a * a * a * a, 0.0), 0.25);',
+    '  float th1 = atan(slopeAt(t));',
+    '  float th2 = asin(min(1.0, sin(th1) / ior));',
+    '  return tan(th1 - th2) * (0.35 + hgt);',
+    '}',
+    '',
+    'vec3 frosted(vec2 p, float radius) {',
+    '  vec3 acc = backdrop(p);',
+    '  if (radius < 0.5) return acc;',
+    '  for (int k = 0; k < 12; k++) {',
+    '    float fk = float(k);',
+    '    float ang = fk * 2.39996;',
+    '    float r = radius * sqrt((fk + 0.5) / 12.0);',
+    '    acc += backdrop(p + vec2(cos(ang), sin(ang)) * r);',
+    '  }',
+    '  return acc / 13.0;',
+    '}',
+    '',
+    'void main() {',
+    '  float dpr = u_p[0].z;',
+    '  vec2 p = vec2(gl_FragCoord.x, u_p[0].y * dpr - gl_FragCoord.y) / dpr;',
+    '  vec3 col = backdrop(p);',
+    '  int count = int(u_p[0].w);',
+    '  for (int i = 0; i < 16; i++) {',
+    '    if (i >= count) break;',
+    '    vec4 r = u_rect[i];',
+    '    vec4 m = u_meta[i];',
+    '    vec2 hs = r.zw * 0.5;',
+    '    vec2 c = r.xy + hs;',
+    '    float rad = min(m.x, min(hs.x, hs.y));',
+    '    vec2 lp = p - c;',
+    '    vec2 q = abs(lp) - (hs - vec2(rad));',
+    '    vec2 sg = vec2(lp.x >= 0.0 ? 1.0 : -1.0, lp.y >= 0.0 ? 1.0 : -1.0);',
+    '    float d;',
+    '    vec2 n;',
+    '    if (q.x > 0.0 && q.y > 0.0) { float l = length(q); d = l - rad; n = sg * q / l; }',
+    '    else if (q.x > q.y) { d = q.x - rad; n = vec2(sg.x, 0.0); }',
+    '    else { d = q.y - rad; n = vec2(0.0, sg.y); }',
+    '    if (d > 0.5) continue;',
+    '    float inset = -d;',
+    '    float bezel = max(2.0, min(u_p[2].w, min(hs.x, hs.y) - 1.0));',
+    '    float t = clamp(inset / bezel, 0.0, 1.0);',
+    '    float disp = 0.0;',
+    '    if (t < 1.0) disp = u_p[3].x * pow(max(bend(t, u_p[3].y) / u_p[4].w, 0.0), 0.45);',
+    '    float frost = m.y > 0.5 ? u_p[4].x : u_p[3].w;',
+    '    float ab = u_p[3].z;',
+    '    vec3 g = vec3(frosted(p - n * disp * (1.0 + ab), frost).r, frosted(p - n * disp, frost).g, frosted(p - n * disp * (1.0 - ab), frost).b);',
+    '    float luma = dot(g, vec3(0.2126, 0.7152, 0.0722));',
+    '    g = mix(vec3(luma), g, u_p[4].z);',
+    '    float facing = dot(n, vec2(-0.6, -0.8));',
+    '    float rim = pow(1.0 - t, 3.0);',
+    '    float k1 = pow(max(facing, 0.0), 1.6);',
+    '    float k2 = 0.45 * pow(max(-facing, 0.0), 2.0);',
+    '    float edge = 1.0 - smoothstep(0.0, 1.5, inset);',
+    '    float spec = min(1.0, (k1 + k2) * rim * 1.4 + edge * (0.35 + 0.65 * max(k1, k2)));',
+    '    if (u_p[2].z > 0.5) {',
+    '      vec2 toP = u_p[2].xy - p;',
+    '      float dist = max(length(toP), 0.001);',
+    '      spec = min(1.0, spec + pow(max(dot(n, toP / dist), 0.0), 2.0) * rim * exp(-dist / 160.0) * 0.9);',
+    '    }',
+    '    g = mix(g, vec3(1.0), spec * u_p[4].y);',
+    '    col = mix(col, clamp(g, 0.0, 1.0), clamp(0.5 - d, 0.0, 1.0));',
+    '    break;',
+    '  }',
+    '  outColor = vec4(col, 1.0);',
+    '}'
+  ].join('\n');
+
+  function sourceSize(src) {
+    if (!src) return null;
+    var w = src.videoWidth || src.naturalWidth || src.width;
+    var hh = src.videoHeight || src.naturalHeight || src.height;
+    return w && hh ? [w, hh] : null;
+  }
+
+  function initWebGPU(canvas) {
+    if (!navigator.gpu) return Promise.reject(new Error('no webgpu'));
+    return navigator.gpu.requestAdapter().then(function (adapter) {
+      if (!adapter) throw new Error('no adapter');
+      return adapter.requestDevice();
+    }).then(function (device) {
+      device.addEventListener('uncapturederror', function (e) { console.error('[santi.glass] webgpu:', e.error && e.error.message); });
+      var ctx = canvas.getContext('webgpu');
+      if (!ctx) throw new Error('no webgpu context');
+      var format = navigator.gpu.getPreferredCanvasFormat();
+      ctx.configure({ device: device, format: format, alphaMode: 'premultiplied' });
+      var module = device.createShaderModule({ code: WGSL });
+      var pipeline = device.createRenderPipeline({
+        layout: 'auto',
+        vertex: { module: module, entryPoint: 'vs' },
+        fragment: { module: module, entryPoint: 'fs', targets: [{ format: format }] },
+        primitive: { topology: 'triangle-list' }
+      });
+      var ubuf = device.createBuffer({ size: UNIFORM_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      var sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
+      var texture = null, texSize = [0, 0], bindGroup = null;
+
+      function makeTexture(w, hh) {
+        if (texture) texture.destroy();
+        texture = device.createTexture({
+          size: [w, hh],
+          format: 'rgba8unorm',
+          usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
+        });
+        texSize = [w, hh];
+        bindGroup = device.createBindGroup({
+          layout: pipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: { buffer: ubuf } },
+            { binding: 1, resource: sampler },
+            { binding: 2, resource: texture.createView() }
+          ]
+        });
+      }
+      makeTexture(1, 1);
+
+      return {
+        kind: 'webgpu',
+        upload: function (src) {
+          var sz = sourceSize(src);
+          if (!sz) return false;
+          if (sz[0] !== texSize[0] || sz[1] !== texSize[1]) makeTexture(sz[0], sz[1]);
+          device.queue.copyExternalImageToTexture({ source: src }, { texture: texture }, sz);
+          return true;
+        },
+        draw: function (u) {
+          device.queue.writeBuffer(ubuf, 0, u);
+          var enc = device.createCommandEncoder();
+          var pass = enc.beginRenderPass({
+            colorAttachments: [{ view: ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 0 } }]
+          });
+          pass.setPipeline(pipeline);
+          pass.setBindGroup(0, bindGroup);
+          pass.draw(3);
+          pass.end();
+          device.queue.submit([enc.finish()]);
+        },
+        destroy: function () {
+          if (texture) texture.destroy();
+          ubuf.destroy();
+          device.destroy();
+        }
+      };
+    });
+  }
+
+  function initWebGL2(canvas) {
+    var gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false });
+    if (!gl) throw new Error('no webgl2');
+    function compile(type, src) {
+      var s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    }
+    var prog = gl.createProgram();
+    gl.attachShader(prog, compile(gl.VERTEX_SHADER, GLSL_VS));
+    gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, GLSL_FS));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+    gl.useProgram(prog);
+    var vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    var locP = gl.getUniformLocation(prog, 'u_p');
+    var locR = gl.getUniformLocation(prog, 'u_rect');
+    var locM = gl.getUniformLocation(prog, 'u_meta');
+    gl.uniform1i(gl.getUniformLocation(prog, 'u_tex'), 0);
+    var tex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
+    return {
+      kind: 'webgl2',
+      upload: function (src) {
+        if (!sourceSize(src)) return false;
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+        return true;
+      },
+      draw: function (u) {
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.uniform4fv(locP, u.subarray(0, 20));
+        gl.uniform4fv(locR, u.subarray(20, 20 + MAX_GLASS * 4));
+        gl.uniform4fv(locM, u.subarray(20 + MAX_GLASS * 4));
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      },
+      destroy: function () {
+        var ext = gl.getExtension('WEBGL_lose_context');
+        if (ext) ext.loseContext();
+      }
+    };
+  }
+
+  function init2D(canvas) {
+    var g = canvas.getContext('2d');
+    var src = null;
+    return {
+      kind: 'none',
+      upload: function (s) { src = s; return !!sourceSize(s); },
+      draw: function (u) {
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.clearRect(0, 0, canvas.width, canvas.height);
+        if (!src) return;
+        var dpr = u[2];
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        g.drawImage(src, u[4], u[5], u[6], u[7]);
+      },
+      destroy: function () {}
+    };
+  }
+
+  function createRenderer(wrap, canvas, onEngine, prefer) {
+    var R = {
+      entries: [],
+      source: null,
+      live: false,
+      fit: 'cover',
+      pointer: null,
+      dirty: true,
+      needsUpload: false,
+      gpu: null,
+      raf: 0,
+      dead: false,
+      last: ''
+    };
+    var u = new Float32Array(UNIFORM_FLOATS);
+
+    function start(backend) {
+      if (R.dead) { if (backend) backend.destroy(); return; }
+      R.gpu = backend;
+      R.needsUpload = true;
+      R.dirty = true;
+      onEngine(backend.kind);
+    }
+
+    var tryGL = function () {
+      try { start(initWebGL2(canvas)); } catch (e) { start(init2D(canvas)); }
+    };
+    if (prefer !== 'webgl2' && navigator.gpu) {
+      initWebGPU(canvas).then(start, tryGL);
+    } else {
+      tryGL();
+    }
+
+    function frame() {
+      if (R.dead) return;
+      R.raf = requestAnimationFrame(frame);
+      if (!R.gpu) return;
+      var W = wrap.clientWidth, H = wrap.clientHeight;
+      if (!W || !H) return;
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      var cw = Math.round(W * dpr), ch = Math.round(H * dpr);
+      if (canvas.width !== cw || canvas.height !== ch) {
+        canvas.width = cw;
+        canvas.height = ch;
+        R.dirty = true;
+      }
+      var src = R.source;
+      var sz = sourceSize(src);
+      if (src && sz && (R.needsUpload || R.live)) {
+        if (R.gpu.upload(src)) {
+          R.needsUpload = false;
+          R.dirty = true;
+        }
+      }
+      var ox = 0, oy = 0, dw = W, dh = H;
+      if (sz && R.fit === 'cover') {
+        var s = Math.max(W / sz[0], H / sz[1]);
+        dw = sz[0] * s;
+        dh = sz[1] * s;
+        ox = (W - dw) / 2;
+        oy = (H - dh) / 2;
+      }
+      var base = wrap.getBoundingClientRect();
+      var tok = R.tokens || (R.tokens = readLensTokens(wrap));
+      var sig = [cw, ch, ox, oy, dw, dh, R.pointer ? R.pointer[0] + ',' + R.pointer[1] : '-'];
+      var count = 0;
+      for (var i = 0; i < R.entries.length && count < MAX_GLASS; i++) {
+        var e = R.entries[i];
+        var r = e.layer.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        var x = r.left - base.left, y = r.top - base.top;
+        var o = 20 + count * 4, m = 20 + MAX_GLASS * 4 + count * 4;
+        u[o] = x; u[o + 1] = y; u[o + 2] = r.width; u[o + 3] = r.height;
+        if (e.radius == null || e.w !== r.width || e.h !== r.height) {
+          e.radius = parseFloat(getComputedStyle(e.layer).borderTopLeftRadius) || 0;
+          e.w = r.width;
+          e.h = r.height;
+        }
+        u[m] = e.radius; u[m + 1] = e.strong ? 1 : 0; u[m + 2] = 0; u[m + 3] = 0;
+        sig.push(x.toFixed(1), y.toFixed(1), r.width.toFixed(1), r.height.toFixed(1), e.radius, e.strong ? 1 : 0);
+        count++;
+      }
+      var key = sig.join('|');
+      if (!R.dirty && key === R.last && !R.live) return;
+      R.last = key;
+      R.dirty = false;
+      u[0] = W; u[1] = H; u[2] = dpr; u[3] = count;
+      u[4] = ox; u[5] = oy; u[6] = dw; u[7] = dh;
+      u[8] = R.pointer ? R.pointer[0] : 0;
+      u[9] = R.pointer ? R.pointer[1] : 0;
+      u[10] = R.pointer ? 1 : 0;
+      u[11] = tok.bezel;
+      u[12] = tok.depth; u[13] = tok.ior; u[14] = tok.aberration; u[15] = tok.frost;
+      u[16] = tok.frostStrong; u[17] = tok.specular; u[18] = tok.saturation; u[19] = bend(0.002, tok.ior);
+      R.gpu.draw(u);
+    }
+    R.raf = requestAnimationFrame(frame);
+
+    function move(e) {
+      var b = wrap.getBoundingClientRect();
+      R.pointer = [e.clientX - b.left, e.clientY - b.top];
+    }
+    function leave() { R.pointer = null; }
+    wrap.addEventListener('pointermove', move);
+    wrap.addEventListener('pointerleave', leave);
+
+    return {
+      setSource: function (src, live, fit) {
+        R.live = !!live;
+        R.fit = fit || 'cover';
+        R.dirty = true;
+        if (typeof src === 'string') {
+          var img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.decoding = 'async';
+          img.onload = function () {
+            if (!window.createImageBitmap) { R.source = img; R.needsUpload = true; return; }
+            createImageBitmap(img).then(function (bmp) { R.source = bmp; R.needsUpload = true; }, function () { R.source = img; R.needsUpload = true; });
+          };
+          img.src = src;
+        } else {
+          R.source = src || null;
+          R.needsUpload = true;
+        }
+      },
+      register: function (entry) {
+        R.entries.push(entry);
+        R.dirty = true;
+        return function () {
+          var i = R.entries.indexOf(entry);
+          if (i !== -1) R.entries.splice(i, 1);
+          R.dirty = true;
+        };
+      },
+      refreshTokens: function () { R.tokens = null; R.dirty = true; },
+      destroy: function () {
+        R.dead = true;
+        cancelAnimationFrame(R.raf);
+        wrap.removeEventListener('pointermove', move);
+        wrap.removeEventListener('pointerleave', leave);
+        if (R.gpu) R.gpu.destroy();
+      }
+    };
+  }
+
+  var SceneContext = React.createContext(null);
+
+  function GlassScene(p) {
+    var wrap = useRef(null);
+    var canvas = useRef(null);
+    var renderer = useRef(null);
+    var eng = useState('pending');
+
+    useLayoutEffect(function () {
+      var r = createRenderer(wrap.current, canvas.current, function (kind) { eng[1](kind); }, p.engine);
+      renderer.current = r;
+      return function () {
+        r.destroy();
+        renderer.current = null;
+      };
+    }, [p.engine]);
+
+    useEffect(function () {
+      if (renderer.current) renderer.current.setSource(p.backdrop, p.live, p.fit);
+    }, [p.backdrop, p.live, p.fit, eng[0]]);
+
+    useEffect(function () {
+      if (p.onEngine && eng[0] !== 'pending') p.onEngine(eng[0]);
+    }, [eng[0]]);
+
+    var gpuReady = eng[0] === 'webgpu' || eng[0] === 'webgl2';
+    var ctx = { engine: eng[0], gpu: gpuReady, renderer: renderer };
+    var rest = omit(p, ['backdrop', 'live', 'fit', 'engine', 'onEngine', 'className', 'children']);
+    return h(
+      'div',
+      Object.assign({}, rest, { ref: wrap, className: cx('sg-scene', p.className), 'data-engine': eng[0] }),
+      h('canvas', { ref: canvas, className: 'sg-scene-canvas', 'aria-hidden': true }),
+      h(SceneContext.Provider, { value: ctx }, h('div', { className: 'sg-scene-content' }, p.children))
+    );
+  }
+
+  /* ------------------------------------------------------------------
+     useLens: picks the gpu scene when the element sits in a GlassScene
+     with a live gpu engine, otherwise the svg lens, otherwise css blur.
+     ------------------------------------------------------------------ */
   function useLens(ref, opts) {
     var glass = useLiquidGlass()[0];
+    var scene = useContext(SceneContext);
     var strong = !!(opts && opts.strong);
     var enabled = !(opts && opts.enabled === false);
+    var mode = !glass || !enabled || prefersReducedTransparency()
+      ? 'off'
+      : scene && scene.gpu
+        ? 'gpu'
+        : scene && scene.engine === 'pending'
+          ? 'wait'
+          : SVG_LENS
+            ? 'svg'
+            : 'off';
+
     useLayoutEffect(function () {
       var el = ref.current;
-      if (!el) return;
-      if (!glass || !enabled || !LENS_SUPPORTED || prefersReducedTransparency()) return;
-      var id = 'sg-lens-' + (++uid);
+      if (!el || mode === 'off' || mode === 'wait') return;
       var layer = document.createElement('span');
       layer.className = 'sg-lens-layer';
       layer.setAttribute('aria-hidden', 'true');
       el.insertBefore(layer, el.firstChild);
       el.classList.add('sg-lens-on');
+
+      if (mode === 'gpu') {
+        el.classList.add('sg-lens-gpu');
+        var unregister = scene.renderer.current.register({ layer: layer, strong: strong });
+        return function () {
+          unregister();
+          if (layer.parentNode) layer.parentNode.removeChild(layer);
+          el.classList.remove('sg-lens-on', 'sg-lens-gpu');
+        };
+      }
+
+      var id = 'sg-lens-' + (++uid);
       var last = '';
       function apply() {
         var W = Math.round(layer.offsetWidth), H = Math.round(layer.offsetHeight);
         if (W < 4 || H < 4 || W * H > 1600000) return;
         var R = parseFloat(getComputedStyle(layer).borderTopLeftRadius) || 0;
         R = Math.min(R, W / 2, H / 2);
-        var p = readParams(el, strong);
-        var sig = [W, H, R, p.bezel, p.depth, p.ior, p.aberration, p.frost, p.specular, p.saturation].join('|');
+        var p = readLensTokens(el);
+        var frost = strong ? p.frostStrong : p.frost;
+        var sig = [W, H, R, p.bezel, p.depth, p.ior, p.aberration, frost, p.specular, p.saturation].join('|');
         if (sig === last) return;
         last = sig;
-        writeFilter(id, W, H, buildMaps(W, H, R, p), p);
+        writeFilter(id, W, H, buildMaps(W, H, R, p), p, frost);
         layer.style.backdropFilter = 'url(#' + id + ')';
         layer.style.webkitBackdropFilter = 'url(#' + id + ')';
       }
@@ -342,7 +930,7 @@
         var f = document.getElementById(id);
         if (f && f.parentNode) f.parentNode.removeChild(f);
       };
-    }, [glass, strong, enabled]);
+    }, [mode, strong]);
   }
 
   /* ------------------------------------------------------------------
@@ -361,6 +949,7 @@
     lock: 'M6.5 11h11v9h-11zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
     plus: 'M12 5v14M5 12h14',
     drop: 'M12 3.5c3.5 4.2 6 7.6 6 10.5a6 6 0 0 1-12 0c0-2.9 2.5-6.3 6-10.5z',
+    play: 'M8 5.5v13l10.5-6.5z',
     chevron: 'M9.5 6l6 6-6 6'
   };
 
@@ -599,6 +1188,7 @@
 
   window.SantiGlass = Object.assign(window.SantiGlass || {}, {
     GlassToggle: GlassToggle,
+    GlassScene: GlassScene,
     Button: Button,
     GlassCard: GlassCard,
     Switch: Switch,
@@ -613,6 +1203,10 @@
     useLens: useLens,
     getLiquidGlass: getLiquidGlass,
     setLiquidGlass: setLiquidGlass,
-    lensSupported: LENS_SUPPORTED
+    subscribeLiquidGlass: subscribeLiquidGlass,
+    syncTauriWindowGlass: syncTauriWindowGlass,
+    lensSupported: SVG_LENS,
+    gpuSupported: { webgpu: !!navigator.gpu, webgl2: (function () { try { return !!document.createElement('canvas').getContext('webgl2'); } catch (e) { return false; } })() },
+    isTauri: IS_TAURI
   });
 })();

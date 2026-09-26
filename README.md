@@ -19,8 +19,10 @@ I wanted my apps (santi.pass, santi.notes, and whatever comes next) to feel like
 ## What's in the box
 
 - **Tokens** for color (light and dark), type, spacing, radii, shadows and the glass lens, all in one [`tokens.json`](tokens.json).
-- **11 React components**: `Button`, `GlassCard`, `GlassToggle`, `Switch`, `SegmentedControl`, `Slider`, `SearchField`, `List`, `ListRow`, `TabBar` and `Icon`.
+- **12 React components**: `Button`, `GlassCard`, `GlassScene`, `GlassToggle`, `Switch`, `SegmentedControl`, `Slider`, `SearchField`, `List`, `ListRow`, `TabBar` and `Icon`.
 - **A liquid glass engine.** The edge of every glass surface bends whatever is behind it, splits it slightly into color, and catches a highlight. It's calculated per element instead of faked with a gradient.
+- **Shader glass.** Inside a `GlassScene`, the lens runs as a WebGPU shader (WebGL2 as a fallback), per pixel, with real color dispersion and a highlight that follows your cursor.
+- **Tauri support.** The native window material (Liquid Glass on macOS 26, Mica on Windows 11) follows the same switch as the in-app glass.
 - **A system-wide toggle** so people can turn the glass off. It's on by default.
 
 ## Quick start
@@ -97,12 +99,28 @@ const ref = React.useRef(null);
 SantiGlass.useLens(ref, { strong: true }); // strong = more frost, for small text
 ```
 
+### Shader glass
+
+A plain `backdrop-filter` can refract live page content, but a shader can't see the page. So the GPU version lives in `GlassScene`, which owns its backdrop and refracts that instead:
+
+```js
+h(SantiGlass.GlassScene, { backdrop: 'cover.jpg', style: { height: 420 } },
+  h(SantiGlass.GlassCard, { style: { position: 'absolute', left: 24, bottom: 24 } }, 'Now Playing')
+);
+```
+
+Any glass component inside the scene switches to the shader automatically. It tries WebGPU first and falls back to WebGL2. Pass `live: true` for video or an animated canvas.
+
+### Tauri
+
+There's a full guide in [docs/tauri.md](docs/tauri.md): the Rust command that turns the native window glass on and off, the config flags, and a one-line hook that keeps it in sync with the toggle.
+
 ### Browser support
 
 | Engine | What you get |
 | --- | --- |
-| Chromium (Chrome, Edge, Electron, Tauri on Windows) | Full refraction, color fringe and highlight |
-| Safari, WKWebView (Tauri on macOS), Firefox | Blurred frosted glass, since they don't support SVG filters in `backdrop-filter` |
+| Chromium (Chrome, Edge, Electron, Tauri on Windows) | Full refraction everywhere, plus WebGPU shader glass in `GlassScene` |
+| Safari, WKWebView (Tauri on macOS), Firefox | Frosted blur for regular glass (no SVG filters in `backdrop-filter`), shader glass in `GlassScene` through WebGPU or WebGL2 |
 | Glass turned off | Solid surfaces everywhere |
 
 You can check which one you got with `SantiGlass.lensSupported`, or the `data-lens` attribute on `<html>` (`refract` or `blur`).
@@ -124,11 +142,12 @@ tokens.json               source of truth for every token
 tokens.css                generated, don't edit by hand
 scripts/build-tokens.mjs  tokens.json -> tokens.css
 components/
-  bundle.js               all components + the glass engine
+  bundle.js               all components + the glass engines (svg, webgpu, webgl2)
   bundle.css              component styles
   index.d.ts              types
   <Component>/README.md   when and how to use each component
   <Component>/preview.html  live preview
+docs/tauri.md             Tauri setup: window glass + shader glass
 GUIDELINES.md             the full design rules (color, type, glass, motion...)
 ```
 

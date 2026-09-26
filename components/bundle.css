@@ -388,6 +388,19 @@
 }
 .sg-glass.sg-lens-on.is-lit::after { opacity: 1; }
 
+/* app window: solid by default, see-through to the native material (mica / vibrancy)
+   while the tauri side reports window glass is on */
+.sg-window { min-height: 100vh; background: var(--surface-grouped); }
+html[data-window-glass],
+html[data-window-glass] body,
+html[data-window-glass] .sg-window { background: transparent; }
+
+/* gpu scene: the canvas draws the backdrop and the refraction under every glass element */
+.sg-scene { position: relative; overflow: hidden; isolation: isolate; }
+.sg-scene-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; pointer-events: none; }
+.sg-scene-content { position: relative; z-index: 1; width: 100%; height: 100%; }
+.sg-glass.sg-lens-gpu::after { display: none; }
+
 /* liquid glass off: every glass surface becomes an opaque elevated surface */
 [data-glass="off"] .sg-glass,
 [data-glass="off"] .sg-glass-strong,

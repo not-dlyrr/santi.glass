@@ -1,0 +1,70 @@
+<!-- @dsCard group="Surfaces" height=380 subtitle="gpu shader lens (webgpu, then webgl2); drag the card" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>preview</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  .scene { height: 100%; min-height: 380px; font-family: var(--font-text); color: var(--label); }
+  .drag { position: absolute; cursor: grab; touch-action: none; user-select: none; }
+  .drag:active { cursor: grabbing; }
+  .engine { position: absolute; right: 16px; top: 14px; font-size: 12px; line-height: 16px; color: #ffffff; background: rgba(0, 0, 0, 0.55); padding: 4px 10px; border-radius: 999px; }
+</style></head>
+<body>
+<div id="root" style="height:100%"></div>
+<script>
+  var S = window.SantiGlass, h = React.createElement;
+
+  // the backdrop the shader refracts: a wallpaper drawn from the wall-* tokens
+  function wallpaper(w, hgt) {
+    var c = document.createElement('canvas');
+    var dpr = 2;
+    c.width = w * dpr; c.height = hgt * dpr;
+    var g = c.getContext('2d');
+    var css = getComputedStyle(document.documentElement);
+    var tok = function (n) { return css.getPropertyValue(n).trim(); };
+    g.scale(dpr, dpr);
+    g.fillStyle = tok('--surface-grouped'); g.fillRect(0, 0, w, hgt);
+    [['--wall-blue', 150, 150, 130], ['--wall-pink', 360, 250, 110], ['--wall-yellow', 620, 90, 80], ['--wall-indigo', 820, 240, 120], ['--wall-teal', 520, 330, 70]].forEach(function (o) {
+      g.fillStyle = tok(o[0]); g.beginPath(); g.arc(o[1], o[2], o[3], 0, Math.PI * 2); g.fill();
+    });
+    g.fillStyle = tok('--label');
+    g.font = '700 30px ' + tok('--font-display');
+    ['Now Playing   Library   Radio', 'Liquid glass bends the rim', 'and splits the light apart'].forEach(function (line, i) { g.fillText(line, 32, 54 + i * 40); });
+    return c;
+  }
+
+  function Draggable(props) {
+    var pos = React.useState(props.start);
+    function down(e) {
+      var sx = e.clientX - pos[0].x, sy = e.clientY - pos[0].y;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      function move(ev) { pos[1]({ x: ev.clientX - sx, y: ev.clientY - sy }); }
+      function up() { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); }
+      window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    }
+    return h('div', { className: 'drag', style: { left: pos[0].x, top: pos[0].y }, onPointerDown: down }, props.children);
+  }
+
+  function Demo() {
+    var bg = React.useMemo(function () { return wallpaper(960, 380); }, []);
+    var eng = React.useState('pending');
+    return h(S.GlassScene, { className: 'scene', backdrop: bg, onEngine: eng[1] },
+      h('div', { className: 'engine' }, 'engine: ' + eng[0]),
+      h(Draggable, { start: { x: 250, y: 130 } },
+        h(S.GlassCard, { style: { width: 280, height: 150 } },
+          h('div', { className: 'numeral' }, '72°'),
+          h('div', { className: 'headline' }, 'Partly Cloudy'))),
+      h('div', { style: { position: 'absolute', left: 560, top: 290 } },
+        h(S.TabBar, { defaultValue: 'home', items: [
+          { id: 'home', label: 'Home', icon: 'house' },
+          { id: 'library', label: 'Library', icon: 'music' },
+          { id: 'search', label: 'Search', icon: 'search' }
+        ] })),
+      h('div', { style: { position: 'absolute', left: 600, top: 150 } }, h(S.Button, { variant: 'glass', icon: 'play' }, 'Play'))
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 import type * as React from 'react';
 
-export type IconName = 'house' | 'search' | 'sliders' | 'person' | 'bell' | 'wifi' | 'moon' | 'music' | 'sun' | 'lock' | 'plus' | 'drop' | 'chevron';
+export type IconName = 'house' | 'search' | 'sliders' | 'person' | 'bell' | 'wifi' | 'moon' | 'music' | 'sun' | 'lock' | 'plus' | 'drop' | 'play' | 'chevron';
 
 export interface IconProps { name: IconName; size?: number; weight?: number; label?: string; className?: string }
 /** 24px-grid line glyph drawn in currentColor. Pass `label` only when the icon stands alone. */
@@ -17,6 +17,25 @@ export declare function getLiquidGlass(): boolean;
 export declare function setLiquidGlass(on: boolean, opts?: { persist?: boolean }): void;
 /** Attach the refracting lens to a custom element that has the sg-glass class. */
 export declare function useLens(ref: React.RefObject<HTMLElement>, opts?: { strong?: boolean; enabled?: boolean }): void;
+export interface GlassSceneProps extends React.HTMLAttributes<HTMLDivElement> {
+  /** What the shader refracts: an image URL, <img>, <video>, <canvas> or ImageBitmap. */
+  backdrop: string | HTMLImageElement | HTMLVideoElement | HTMLCanvasElement | ImageBitmap;
+  /** Re-upload the backdrop every frame (video, animated canvas). */
+  live?: boolean;
+  fit?: 'cover' | 'fill';
+  /** Skip WebGPU and use WebGL2. */
+  engine?: 'webgl2';
+  onEngine?: (engine: 'webgpu' | 'webgl2' | 'none') => void;
+}
+/** GPU-rendered backdrop; glass components inside it refract it with a WebGPU or WebGL2 shader. */
+export declare function GlassScene(props: GlassSceneProps): React.ReactElement;
+
+/** Tauri: calls the Rust command (default set_liquid_glass) now and whenever Liquid Glass changes. Returns an unsubscribe function. */
+export declare function syncTauriWindowGlass(opts?: { command?: string; invoke?: (cmd: string, args: { on: boolean }) => Promise<unknown> }): () => void;
+export declare function subscribeLiquidGlass(fn: (on: boolean) => void): () => void;
+export declare const gpuSupported: { webgpu: boolean; webgl2: boolean };
+export declare const isTauri: boolean;
+
 /** true where backdrop-filter: url() refraction renders (Chromium engines). */
 export declare const lensSupported: boolean;
 
@@ -78,7 +97,7 @@ export declare function TabBar(props: TabBarProps): React.ReactElement;
 declare global {
   interface Window {
     SantiGlass: {
-      GlassToggle: typeof GlassToggle; useLiquidGlass: typeof useLiquidGlass; getLiquidGlass: typeof getLiquidGlass; setLiquidGlass: typeof setLiquidGlass; useLens: typeof useLens; lensSupported: boolean;
+      GlassToggle: typeof GlassToggle; GlassScene: typeof GlassScene; syncTauriWindowGlass: typeof syncTauriWindowGlass; subscribeLiquidGlass: typeof subscribeLiquidGlass; gpuSupported: typeof gpuSupported; isTauri: boolean; useLiquidGlass: typeof useLiquidGlass; getLiquidGlass: typeof getLiquidGlass; setLiquidGlass: typeof setLiquidGlass; useLens: typeof useLens; lensSupported: boolean;
       Button: typeof Button; GlassCard: typeof GlassCard; Switch: typeof Switch; SegmentedControl: typeof SegmentedControl;
       Slider: typeof Slider; SearchField: typeof SearchField; List: typeof List; ListRow: typeof ListRow; TabBar: typeof TabBar; Icon: typeof Icon;
     };
