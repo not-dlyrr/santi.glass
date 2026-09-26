@@ -1,65 +1,73 @@
 /* Generated from tokens.json by scripts/build-tokens.mjs. Do not edit by hand. */
 
 @font-face {
-  font-family: "SF Pro Display";
-  src: url("fonts/SF-Pro-Display-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "SF Pro Display";
-  src: url("fonts/SF-Pro-Display-Medium.woff2") format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "SF Pro Display";
-  src: url("fonts/SF-Pro-Display-Semibold.woff2") format("woff2");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "SF Pro Display";
-  src: url("fonts/SF-Pro-Display-Bold.woff2") format("woff2");
-  font-weight: 700;
+  font-family: "SF Pro Text";
+  src: url("fonts/SF-Pro.woff2") format("woff2");
+  font-weight: 1 1000;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
   font-family: "SF Pro Text";
-  src: url("fonts/SF-Pro-Text-Regular.woff2") format("woff2");
-  font-weight: 400;
+  src: url("fonts/SF-Pro-Italic.woff2") format("woff2");
+  font-weight: 1 1000;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("fonts/SF-Pro.woff2") format("woff2");
+  font-weight: 1 1000;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: "SF Pro Text";
-  src: url("fonts/SF-Pro-Text-Medium.woff2") format("woff2");
-  font-weight: 500;
+  font-family: "SF Pro Display";
+  src: url("fonts/SF-Pro-Italic.woff2") format("woff2");
+  font-weight: 1 1000;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Pro";
+  src: url("fonts/SF-Pro.woff2") format("woff2");
+  font-weight: 1 1000;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: "SF Pro Text";
-  src: url("fonts/SF-Pro-Text-Semibold.woff2") format("woff2");
-  font-weight: 600;
+  font-family: "SF Pro";
+  src: url("fonts/SF-Pro-Italic.woff2") format("woff2");
+  font-weight: 1 1000;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Pro Rounded";
+  src: url("fonts/SF-Pro-Rounded-Ultralight.woff2") format("woff2");
+  font-weight: 100;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: "SF Pro Text";
-  src: url("fonts/SF-Pro-Text-Bold.woff2") format("woff2");
-  font-weight: 700;
+  font-family: "SF Pro Rounded";
+  src: url("fonts/SF-Pro-Rounded-Thin.woff2") format("woff2");
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Pro Rounded";
+  src: url("fonts/SF-Pro-Rounded-Light.woff2") format("woff2");
+  font-weight: 300;
   font-style: normal;
   font-display: swap;
 }
@@ -93,6 +101,118 @@
   src: url("fonts/SF-Pro-Rounded-Bold.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Pro Rounded";
+  src: url("fonts/SF-Pro-Rounded-Heavy.woff2") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Pro Rounded";
+  src: url("fonts/SF-Pro-Rounded-Black.woff2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Mono";
+  src: url("fonts/SF-Mono-Light.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Mono";
+  src: url("fonts/SF-Mono-LightItalic.woff2") format("woff2");
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Mono";
+  src: url("fonts/SF-Mono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Mono";
+  src: url("fonts/SF-Mono-RegularItalic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Mono";
+  src: url("fonts/SF-Mono-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Mono";
+  src: url("fonts/SF-Mono-MediumItalic.woff2") format("woff2");
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Mono";
+  src: url("fonts/SF-Mono-Semibold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Mono";
+  src: url("fonts/SF-Mono-SemiboldItalic.woff2") format("woff2");
+  font-weight: 600;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Mono";
+  src: url("fonts/SF-Mono-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Mono";
+  src: url("fonts/SF-Mono-BoldItalic.woff2") format("woff2");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Mono";
+  src: url("fonts/SF-Mono-Heavy.woff2") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Mono";
+  src: url("fonts/SF-Mono-HeavyItalic.woff2") format("woff2");
+  font-weight: 800;
+  font-style: italic;
   font-display: swap;
 }
 
