@@ -1,82 +1,135 @@
-An Apple-inspired system for santi's apps: liquid glass floating over color, soft continuous corners, one blue, and motion that feels physical. It is inspired by iOS conventions, not a copy of Apple's UI. It is set in SF Pro where the system provides it, and ships no Apple font files, icons or artwork.
+<div align="center">
 
-## Principles
+# santi.glass
 
-- **Content first, chrome floats.** Navigation, tab bars, toolbars and controls are Liquid Glass layered over content (opaque when the person turns Liquid Glass off). Content itself sits on solid `surface` and `surface-grouped`.
-- **One accent.** `accent` is the only brand hue in the interface. The `wall-*` colors exist for wallpapers, artwork and icon squares, never for text or controls.
-- **Soft, concentric geometry.** Everything interactive is a pill (`radius-pill`). Containers use `radius-lg` or `radius-xl`, and anything nested inside a rounded container uses the next radius down so corners stay concentric.
-- **Calm.** No pulsing or glowing "live" dots, no gradients on UI, no decorative emoji. State changes are shown by position, weight and a word.
+A small, Apple-flavored design system for my apps.<br>
+Liquid glass that actually refracts, soft pill-shaped controls, SF Pro, and one blue.
 
-## Content fundamentals
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/preview-dark.png">
+  <img alt="santi.glass components floating over colored circles: a weather card, a search field, a Liquid Glass switch, a tab bar and a button" src="docs/preview-light.png" width="100%">
+</picture>
 
-- Title case for navigation titles, buttons, tabs, list headers and segment labels ("Add Device", "Privacy & Security"). Sentence case for footers, descriptions and alerts ("Known networks join automatically.").
-- Address the person as "you" only when necessary; prefer naming the thing ("Wi-Fi is off") over narrating ("You have turned off Wi-Fi").
-- Short. Buttons are one to three words, verbs first. Footers are one or two sentences.
-- No emoji in UI copy. No exclamation marks outside of a genuine celebration.
-- Placeholders name what is searched: "Search Settings", never "Search...".
+</div>
 
-## Color
+## Why
 
-- Page ground is `surface-grouped`; sections and cards on it are `surface`; things that float in dark mode are `surface-elevated`.
-- Text is `label`; secondary text (subtitles, row values, list headers and footers, placeholders) is `label-secondary`. Both hold 4.5:1 or better on every surface and on `glass-fill-strong` in both themes.
-- Blue as a fill is `accent` with `on-accent` text. Blue as text (links, plain and tinted buttons, the active tab) is `accent-text`. Tinted buttons put `accent-text` on `accent-tint`.
-- Destructive: `danger` fill with `on-accent`, or `danger-text` for text-only actions. Warnings use `warning-text`; success uses `success-text`. Every status also carries a word or glyph, never color alone.
-- `switch-on` is below 3:1 on white by design; the switch knob position carries the state.
-- Focus is a 2px solid `focus-ring` outline, offset 2px (inset 2px inside rows and tabs). It holds 3:1 or better on every surface in both themes.
+I wanted my apps (santi.pass, santi.notes, and whatever comes next) to feel like they belong on a Mac or an iPhone, without copying Apple's UI piece by piece. So this repo holds the shared stuff: colors, type, spacing, a handful of React components, and a glass effect that goes past a plain `backdrop-filter: blur()`.
 
-## Liquid Glass
+## What's in the box
 
-Liquid Glass is a system-wide setting, **on by default**, and every app built on santi.glass must expose it.
+- **Tokens** for color (light and dark), type, spacing, radii, shadows and the glass lens, all in one [`tokens.json`](tokens.json).
+- **11 React components**: `Button`, `GlassCard`, `GlassToggle`, `Switch`, `SegmentedControl`, `Slider`, `SearchField`, `List`, `ListRow`, `TabBar` and `Icon`.
+- **A liquid glass engine.** The edge of every glass surface bends whatever is behind it, splits it slightly into color, and catches a highlight. It's calculated per element instead of faked with a gradient.
+- **A system-wide toggle** so people can turn the glass off. It's on by default.
 
-- Ship `GlassToggle` in Settings under "Appearance" (see its guidelines). It flips `<html data-glass="on|off">` and persists the choice. Read it with `useLiquidGlass()`, and set it with `setLiquidGlass(bool)`.
-- It starts off only when the OS asks for reduced transparency.
-- **On, where refraction is supported** (Chromium: Chrome, Edge, Electron, WebView2 / Tauri on Windows; `<html data-lens="refract">`): each glass surface gets a live lens. A displacement map is computed per element from a squircle bezel profile and Snell's law (`lens-bezel`, `lens-depth`, `lens-ior`), so content under the rim bends and compresses. The red and blue channels are displaced apart for dispersion (`lens-aberration`), and a specular rim is lit from the top left with a softer bounce bottom right (`lens-specular`). The center stays nearly clear under `lens-frost`, or `lens-frost-strong` on text-bearing glass. The tint on top is `glass-tint`, or `glass-tint-strong`. Hovering adds a pointer-following `glass-sheen`.
-- **On, where refraction is unsupported** (Safari / WKWebView, Firefox; `data-lens="blur"`): the same surfaces fall back to `glass-fill` or `glass-fill-strong` with `blur-glass` and `saturate(180%)`, a 0.5px `glass-stroke` rim and `shadow-glass` plus `shadow-glass-edge`.
-- **Off:** every glass surface becomes opaque `surface-elevated` with a 0.5px `separator` rim and `shadow-solid`. Layouts must work identically in both states. Never rely on the glass to separate layers; spacing and the shadow do that.
-- Glass only floats over something: imagery, `wall-*` color, or scrolling content. Over flat `surface-grouped`, use `surface` instead.
-- Never put glass on glass. Inside a glass panel, use plain content or a `surface` card.
-- Text smaller than 17px only goes on strong glass (`strength="strong"`, tab bars, search fields, glass lists). Regular glass carries only large type and glyphs.
-- Custom glass elements add the `sg-glass` class and call `useLens(ref, { strong })`. Never put a box-shadow on the refracting layer itself. The engine refracts through a child layer so the element can keep its shadow.
-- Honor `prefers-reduced-transparency`: glass falls back to the opaque look (bundle.css does this).
+## Quick start
 
-## Typography
+There's no npm package yet, so you copy the files in. You need React 18.
 
-- The typeface is SF Pro. The stacks lead with `-apple-system` and `BlinkMacSystemFont`, which resolve to SF Pro with optical sizing on macOS and iOS. Next come the installed families "SF Pro Display", "SF Pro Text", "SF Pro Rounded", "SF Mono" and the variable "SF Pro", so any machine with Apple's SF fonts installed renders SF Pro too.
-- On Windows or Linux, install SF Pro from Apple's developer fonts page to see it. Apple's license does not allow bundling the font files in a web page or app, so this system never ships them, and never swaps in a lookalike web font. Machines without SF Pro fall back to Segoe UI Variable, Segoe UI or the platform UI font.
-- Use `display` family styles (`large-title`, `title-1`, `title-2`, `title-3`) at 20px and up, and `text` family styles (`headline` through `caption-2`) below that.
-- One `large-title` per screen. Body copy and row titles are `body`; button labels and emphasized rows are `headline`.
-- Tracking is part of the style: tighten slightly at text sizes and open slightly at display sizes, exactly as the tokens specify.
-- Big glanceable numbers (weather, stats, timers) use `numeral` in the rounded family.
-- `caption-2` (11px) is the floor. Nothing smaller.
+```html
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components/bundle.css">
 
-## Spacing and layout
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="components/bundle.js"></script>
+```
 
-- Side margins are `space-4`; inset lists sit `space-4` from the screen edge (`space-5` on wide layouts).
-- Every hit target is at least `space-11` (44px) tall.
-- Section gap `space-6`; unrelated groups `space-8`.
-- Row padding is 11px vertical and `space-4` horizontal; icon squares are 29px with `radius-xs`, `space-3` from the title.
-- Hairlines are 0.5px `separator`, inset to the text column.
+Everything lives on `window.SantiGlass`:
 
-## Radii
+```js
+const { TabBar, GlassCard, Button } = window.SantiGlass;
+const h = React.createElement;
 
-`radius-xs` icon squares; `radius-sm` chips and small fields; `radius-md` thumbnails and nested cards; `radius-lg` list sections and glass cards; `radius-xl` sheets; `radius-pill` every button, field, segmented control, switch and tab bar.
+ReactDOM.createRoot(document.getElementById('app')).render(
+  h(TabBar, {
+    defaultValue: 'home',
+    items: [
+      { id: 'home', label: 'Home', icon: 'house' },
+      { id: 'search', label: 'Search', icon: 'search' },
+      { id: 'profile', label: 'Profile', icon: 'person' },
+    ],
+  })
+);
+```
 
-## Motion
+Types are in [`components/index.d.ts`](components/index.d.ts) if you want autocomplete.
 
-- Motion is springy, not linear. Use `cubic-bezier(0.3, 1.4, 0.5, 1)` for presses and knobs (about 0.35 to 0.4s), `cubic-bezier(0.3, 1.3, 0.5, 1)` for sliding selections (0.45s), and plain `ease` at 0.2 to 0.25s for color changes.
-- Presses scale buttons to 0.96 and tabs to 0.94.
-- Nothing loops, pulses or breathes.
-- Honor `prefers-reduced-motion` by dropping transitions (bundle.css does this).
+### Themes
 
-## Iconography
+Dark mode follows the OS. To force one, set `data-theme` on `<html>`:
 
-- On Apple platforms use SF Symbols (system-provided, not bundled here). Everywhere else use the bundle's `Icon`: 24px grid line glyphs, 1.8px stroke (2px at 18px and below), round caps and joins, drawn in `currentColor`. These are a generic substitute, not SF Symbols.
-- Icons in tabs are 24px; in rows they sit white on a 29px color square (`accent`, `wall-blue`, `wall-indigo`, `wall-pink`, `danger`, `success-text` only).
-- Icons never replace a label in tabs or buttons unless the meaning is universal (search, add, share) and an `aria-label` is set.
+```html
+<html data-theme="dark">
+```
 
-## States
+### Changing tokens
 
-- Pressed: scale down plus `fill-tertiary` behind rows.
-- Disabled: 40% opacity, no press animation.
-- Selected: `seg-selected` thumb in segmented controls, `glass-selection` pill plus `accent-text` in tab bars.
-- Loading: a system spinner or skeleton in `fill-tertiary`; never a glowing dot.
+Edit `tokens.json`, then rebuild the CSS:
+
+```sh
+node scripts/build-tokens.mjs
+```
+
+## Liquid glass
+
+Glass is a setting, not a style you opt into per screen. It starts on, and every app that uses this system should ship the switch for it (put `GlassToggle` in your Appearance settings).
+
+```js
+const { useLiquidGlass, setLiquidGlass } = window.SantiGlass;
+
+// in a component
+const [glassOn, setGlass] = useLiquidGlass();
+
+// anywhere else, e.g. when loading saved settings
+setLiquidGlass(false);
+```
+
+When it's off, every glass surface turns into a solid panel with a thin border. Nothing moves around, so layouts work either way. It also starts off if the OS has "Reduce transparency" turned on.
+
+**How the lensing works:** for each glass element, the engine builds a displacement map from a rounded bezel profile and Snell's law, then runs it through an SVG filter as a `backdrop-filter`. The red and blue channels get displaced a little more and a little less than green, which gives the color fringe at the edge. A second map adds the rim highlight. You can tune all of it with the `lens-*` tokens (bezel width, depth, index of refraction, aberration, frost, highlight, saturation).
+
+To put glass on your own element, give it the `sg-glass` class and call the hook:
+
+```js
+const ref = React.useRef(null);
+SantiGlass.useLens(ref, { strong: true }); // strong = more frost, for small text
+```
+
+### Browser support
+
+| Engine | What you get |
+| --- | --- |
+| Chromium (Chrome, Edge, Electron, Tauri on Windows) | Full refraction, color fringe and highlight |
+| Safari, WKWebView (Tauri on macOS), Firefox | Blurred frosted glass, since they don't support SVG filters in `backdrop-filter` |
+| Glass turned off | Solid surfaces everywhere |
+
+You can check which one you got with `SantiGlass.lensSupported`, or the `data-lens` attribute on `<html>` (`refract` or `blur`).
+
+## Fonts
+
+The type stacks ask for the system font first, which is SF Pro on macOS and iOS. On Windows and Linux they'll pick up SF Pro if you've installed it from [Apple's fonts page](https://developer.apple.com/fonts/), and fall back to Segoe UI otherwise.
+
+The font files aren't in this repo because Apple's license doesn't allow redistributing them.
+
+## Icons
+
+On Apple platforms, use SF Symbols. Everywhere else, `Icon` covers the basics with simple line glyphs drawn on a 24px grid. They're generic stand-ins, not SF Symbols.
+
+## Project layout
+
+```
+tokens.json               source of truth for every token
+tokens.css                generated, don't edit by hand
+scripts/build-tokens.mjs  tokens.json -> tokens.css
+components/
+  bundle.js               all components + the glass engine
+  bundle.css              component styles
+  index.d.ts              types
+  <Component>/README.md   when and how to use each component
+  <Component>/preview.html  live preview
+GUIDELINES.md             the full design rules (color, type, glass, motion...)
+```
+
+If you're building a screen, read [GUIDELINES.md](GUIDELINES.md) first. It covers the stuff the components don't enforce: when to use glass, which colors go where, copy tone, spacing and motion.
