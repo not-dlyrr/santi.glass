@@ -1,6 +1,6 @@
 # Design guidelines
 
-An Apple-inspired system for santi's apps: liquid glass floating over color, soft continuous corners, one blue, and motion that feels physical. It is inspired by iOS conventions, not a copy of Apple's UI. It is set in SF Pro where the system provides it, and ships no Apple font files, icons or artwork.
+An Apple-inspired system for santi's apps: liquid glass floating over color, soft continuous corners, one blue, and motion that feels physical. It is inspired by iOS conventions, not a copy of Apple's UI. It is set in SF Pro, bundled as web fonts, and ships no Apple icons or artwork.
 
 ## Principles
 
@@ -46,7 +46,7 @@ Liquid Glass is a system-wide setting, **on by default**, and every app built on
 ## Typography
 
 - The typeface is SF Pro. The stacks lead with `-apple-system` and `BlinkMacSystemFont`, which resolve to SF Pro with optical sizing on macOS and iOS. Next come the installed families "SF Pro Display", "SF Pro Text", "SF Pro Rounded", "SF Mono" and the variable "SF Pro", so any machine with Apple's SF fonts installed renders SF Pro too.
-- On Windows or Linux, install SF Pro from Apple's developer fonts page to see it. Apple's license does not allow bundling the font files in a web page or app, so this system never ships them, and never swaps in a lookalike web font. Machines without SF Pro fall back to Segoe UI Variable, Segoe UI or the platform UI font.
+- Everywhere else, the bundled web fonts take over: SF Pro Display, SF Pro Text and SF Pro Rounded in Regular, Medium, Semibold and Bold, as Latin-subset woff2 files under `fonts/`, declared with `@font-face` in tokens.css. Windows and Linux render SF Pro with no install. SF Mono is not bundled, so the mono stack falls back to Consolas or the platform monospace.
 - Use `display` family styles (`large-title`, `title-1`, `title-2`, `title-3`) at 20px and up, and `text` family styles (`headline` through `caption-2`) below that.
 - One `large-title` per screen. Body copy and row titles are `body`; button labels and emphasized rows are `headline`.
 - Tracking is part of the style: tighten slightly at text sizes and open slightly at display sizes, exactly as the tokens specify.

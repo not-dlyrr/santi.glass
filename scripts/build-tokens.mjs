@@ -24,6 +24,11 @@ const plainFamilies = Object.keys(t).filter(
 
 let css = `/* Generated from tokens.json by scripts/build-tokens.mjs. Do not edit by hand. */\n\n`;
 
+// font files are relative to the repo root, where tokens.css lives
+for (const f of t.type.fonts ?? []) {
+  css += `@font-face {\n  font-family: "${f.family}";\n  src: url("${f.file}") format("woff2");\n  font-weight: ${f.weight};\n  font-style: ${f.style ?? 'normal'};\n  font-display: swap;\n}\n\n`;
+}
+
 themes.forEach((theme, i) => {
   const selector = i === 0 ? `:root,\n[data-theme="${theme}"]` : `[data-theme="${theme}"]`;
   const lines = themed

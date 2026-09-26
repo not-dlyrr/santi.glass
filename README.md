@@ -127,9 +127,9 @@ You can check which one you got with `SantiGlass.lensSupported`, or the `data-le
 
 ## Fonts
 
-The type stacks ask for the system font first, which is SF Pro on macOS and iOS. On Windows and Linux they'll pick up SF Pro if you've installed it from [Apple's fonts page](https://developer.apple.com/fonts/), and fall back to Segoe UI otherwise.
+The type stacks ask for the system font first, which is SF Pro on macOS and iOS. Everywhere else, `tokens.css` loads the web fonts in `fonts/`: SF Pro Display, Text and Rounded in Regular, Medium, Semibold and Bold, as Latin-subset woff2 files (about 40 KB each). Keep `fonts/` next to `tokens.css` so the relative URLs resolve.
 
-The font files aren't in this repo because Apple's license doesn't allow redistributing them.
+SF Mono isn't included, so code text falls back to Consolas or the platform monospace.
 
 ## Icons
 
@@ -141,6 +141,7 @@ On Apple platforms, use SF Symbols. Everywhere else, `Icon` covers the basics wi
 tokens.json               source of truth for every token
 tokens.css                generated, don't edit by hand
 scripts/build-tokens.mjs  tokens.json -> tokens.css
+fonts/                    SF Pro Display, Text, Rounded (woff2)
 components/
   bundle.js               all components + the glass engines (svg, webgpu, webgl2)
   bundle.css              component styles
