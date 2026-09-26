@@ -1,0 +1,33 @@
+{
+  "v": 3,
+  "layout": "files",
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-09-26T15:56:14Z"
+  },
+  "title": "santi.glass",
+  "namespace": "SantiGlass",
+  "libraries": [
+    {
+      "name": "react",
+      "version": "18"
+    },
+    {
+      "name": "react-dom",
+      "version": "18"
+    }
+  ],
+  "sections": {},
+  "groups": [],
+  "assetGroups": {},
+  "blobs": {},
+  "docs": {
+    "sections": []
+  },
+  "lastChange": {
+    "by": "Santi",
+    "at": "2026-09-26T16:40:00Z",
+    "via": "Claude",
+    "note": "Liquid Glass is now a system-wide toggle (on by default) with a refracting lens engine; SF Pro-first type stacks."
+  }
+}

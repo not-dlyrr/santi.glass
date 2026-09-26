@@ -1,0 +1,20 @@
+<!-- @dsCard group="Navigation" height=120 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>preview</title>
+<style>html,body{margin:0;height:100%}</style></head>
+<body>
+<div id="root" class="sg-stage"></div>
+<script>
+  var S = window.SantiGlass, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(S.TabBar, { defaultValue: 'home', items: [
+      { id: 'home', label: 'Home', icon: 'house' },
+      { id: 'library', label: 'Library', icon: 'music' },
+      { id: 'search', label: 'Search', icon: 'search' },
+      { id: 'profile', label: 'Profile', icon: 'person' }
+    ] })
+  ));
+</script>
+</body>
+</html>

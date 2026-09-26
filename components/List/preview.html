@@ -1,0 +1,19 @@
+<!-- @dsCard group="Lists" height=340 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>preview</title>
+<style>html,body{margin:0;height:100%}</style></head>
+<body>
+<div id="root" class="sg-stage is-plain is-column"></div>
+<script>
+  var S = window.SantiGlass, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(S.List, { header: 'Connectivity', footer: 'Known networks join automatically.' },
+      h(S.ListRow, { icon: 'wifi', iconColor: 'var(--wall-blue)', title: 'Wi-Fi', detail: 'xocat-5G', onClick: function () {} }),
+      h(S.ListRow, { icon: 'moon', iconColor: 'var(--wall-indigo)', title: 'Focus', accessory: h(S.Switch, { 'aria-label': 'Focus', defaultChecked: true }) }),
+      h(S.ListRow, { icon: 'bell', iconColor: 'var(--wall-pink)', title: 'Notifications', onClick: function () {} }),
+      h(S.ListRow, { icon: 'lock', iconColor: 'var(--danger)', title: 'Privacy & Security', onClick: function () {} }))
+  ));
+</script>
+</body>
+</html>

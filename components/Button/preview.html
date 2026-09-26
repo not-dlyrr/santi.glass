@@ -1,0 +1,19 @@
+<!-- @dsCard group="Actions" height=120 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>preview</title>
+<style>html,body{margin:0;height:100%}</style></head>
+<body>
+<div id="root" class="sg-stage is-plain"></div>
+<script>
+  var S = window.SantiGlass, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(S.Button, { variant: 'filled' }, 'Continue'),
+    h(S.Button, { variant: 'tinted', icon: 'plus' }, 'Add Device'),
+    h(S.Button, { variant: 'glass' }, 'Share'),
+    h(S.Button, { variant: 'plain' }, 'Not Now'),
+    h(S.Button, { variant: 'destructive', size: 'small' }, 'Delete')
+  ));
+</script>
+</body>
+</html>

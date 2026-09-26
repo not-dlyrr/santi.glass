@@ -1,0 +1,34 @@
+<!-- @dsCard group="Surfaces" height=300 subtitle="drag the cards over the text and orbs" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>preview</title>
+<style>html,body{margin:0;height:100%} .drag{position:absolute;cursor:grab;touch-action:none;user-select:none} .drag:active{cursor:grabbing}</style></head>
+<body>
+<div id="root" class="sg-stage"></div>
+<script>
+  var S = window.SantiGlass, h = React.createElement;
+  function Draggable(props) {
+    var pos = React.useState(props.start), ref = React.useRef(null);
+    function down(e) {
+      var sx = e.clientX - pos[0].x, sy = e.clientY - pos[0].y;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      function move(ev) { pos[1]({ x: ev.clientX - sx, y: ev.clientY - sy }); }
+      function up() { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); }
+      window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    }
+    return h('div', { className: 'drag', style: { left: pos[0].x, top: pos[0].y, zIndex: 2 }, onPointerDown: down }, props.children);
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h('div', { className: 'sg-backdrop', 'aria-hidden': true }, 'Glass bends the light that passes through its rim. Content under the edge compresses and splits into color while the middle stays clear. Drag the cards around.'),
+    h(Draggable, { start: { x: 140, y: 120 } },
+      h(S.GlassCard, { style: { width: 260, height: 150 } },
+        h('div', { className: 'numeral' }, '72°'),
+        h('div', { className: 'headline' }, 'Partly Cloudy'))),
+    h(Draggable, { start: { x: 560, y: 150 } },
+      h(S.GlassCard, { strength: 'strong', style: { width: 220 } },
+        h('div', { className: 'headline' }, 'Focus'),
+        h('div', { className: 'footnote', style: { color: 'var(--label-secondary)', marginTop: 4 } }, 'On until 6:00 PM')))
+  ));
+</script>
+</body>
+</html>

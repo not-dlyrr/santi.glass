@@ -1,0 +1,62 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>santi.glass cover</title>
+<style>
+  html, body { margin: 0; height: 288px; background: var(--surface-grouped); }
+  .cover { position: relative; width: 960px; height: 288px; overflow: hidden; background: var(--surface-grouped); }
+  .cover svg { position: absolute; inset: 0; }
+  .b-blue { fill: var(--wall-blue); }
+  .b-indigo { fill: var(--wall-indigo); }
+  .b-pink { fill: var(--wall-pink); }
+  .b-yellow { fill: var(--wall-yellow); }
+  .b-ink { fill: var(--label); }
+  .pane { fill: var(--glass-fill); stroke: var(--glass-stroke); stroke-width: 1; }
+  .r-xl { rx: var(--radius-xl); }
+  .r-lg { rx: var(--radius-lg); }
+  .r-md { rx: var(--radius-md); }
+  .text { position: absolute; left: 40px; bottom: 36px; max-width: 440px; }
+  .name {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 64px;
+    line-height: 0.95;
+    letter-spacing: -0.5px;
+    color: var(--label);
+  }
+  .tag {
+    margin: 12px 0 0;
+    font-family: var(--font-text);
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--label-secondary);
+  }
+</style>
+</head>
+<body>
+<div class="cover">
+  <!--
+    blocks: wall-blue disc r120 (3 x radius-xl + space-6), wall-indigo pill 280x112 bleeding off the top edge, wall-pink disc r72, wall-yellow disc r28, label ink tile 64 (space-8 x 2) at radius-md.
+    arrangement: overlapping discs and pills clustered right of x=480, the pill bleeding off the top right like a floating bar.
+    pattern: literal motif (glass panes). the README's first principle is "chrome floats as glass over color", so two translucent panes in glass-fill with a glass-stroke rim sit across the blocks.
+    scales: panes 200x120 at radius-xl and 120x88 at radius-lg; offsets on space-4 / space-6 / space-8 multiples; pill rx = half its 112 height.
+  -->
+  <svg width="960" height="288" viewBox="0 0 960 288" aria-hidden="true">
+    <circle class="b-blue" cx="640" cy="152" r="120"></circle>
+    <rect class="b-indigo" x="704" y="-40" width="280" height="112" rx="56"></rect>
+    <circle class="b-pink" cx="864" cy="208" r="72"></circle>
+    <circle class="b-yellow" cx="536" cy="48" r="28"></circle>
+    <rect class="b-ink r-md" x="744" y="200" width="64" height="64"></rect>
+    <rect class="pane r-xl" x="576" y="96" width="200" height="120"></rect>
+    <rect class="pane r-lg" x="800" y="48" width="120" height="88"></rect>
+  </svg>
+  <div class="text">
+    <p class="name">santi.glass</p>
+    <p class="tag">Glass over color, pill-soft corners, one blue.</p>
+  </div>
+</div>
+</body>
+</html>

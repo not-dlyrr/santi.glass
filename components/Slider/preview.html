@@ -1,0 +1,16 @@
+<!-- @dsCard group="Controls" height=96 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>preview</title>
+<style>html,body{margin:0;height:100%}</style></head>
+<body>
+<div id="root" class="sg-stage"></div>
+<script>
+  var S = window.SantiGlass, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(S.GlassCard, { strength: 'strong', style: { width: 360 } },
+      h(S.Slider, { defaultValue: 64, minIcon: 'sun', maxIcon: 'sun', 'aria-label': 'Brightness' }))
+  ));
+</script>
+</body>
+</html>

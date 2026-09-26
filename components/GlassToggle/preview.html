@@ -1,0 +1,23 @@
+<!-- @dsCard group="Settings" height=260 subtitle="system-wide, on by default" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>preview</title>
+<style>html,body{margin:0;height:100%}</style></head>
+<body>
+<div id="root" class="sg-stage is-plain"></div>
+<script>
+  var S = window.SantiGlass, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h('div', { className: 'sg-backdrop', 'aria-hidden': true, style: { left: 380 } }, h('div', { style: { position: 'absolute', left: 60, top: 70, width: 150, height: 150, borderRadius: '50%', background: 'var(--wall-blue)' } }), h('div', { style: { position: 'absolute', left: 300, top: 110, width: 120, height: 120, borderRadius: '50%', background: 'var(--wall-pink)' } }), h('div', { style: { position: 'relative' } }, 'Now Playing Library Radio Search Now Playing Library Radio Search')),
+    h(S.List, { header: 'Appearance', footer: 'Turn off to use solid surfaces everywhere.' },
+      h(S.ListRow, { icon: 'drop', iconColor: 'var(--wall-blue)', title: 'Liquid Glass', accessory: h(S.GlassToggle, { label: null }) })),
+    h('div', { style: { display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'flex-start', marginLeft: 40 } }, h(S.TabBar, { defaultValue: 'home', items: [
+      { id: 'home', label: 'Home', icon: 'house' },
+      { id: 'search', label: 'Search', icon: 'search' },
+      { id: 'profile', label: 'Profile', icon: 'person' }
+    ] }),
+    h(S.Button, { variant: 'glass', icon: 'plus' }, 'New'))
+  ));
+</script>
+</body>
+</html>
