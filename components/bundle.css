@@ -388,8 +388,8 @@
 }
 .sg-glass.sg-lens-on.is-lit::after { opacity: 1; }
 
-/* app window: solid by default, see-through to the native material (mica / vibrancy)
-   while the tauri side reports window glass is on */
+/* app window: solid by default, see-through to the native material (liquid glass,
+   vibrancy, mica, acrylic) while the tauri / electron side reports window glass is on */
 .sg-window { min-height: 100vh; background: var(--surface-grouped); }
 html[data-window-glass],
 html[data-window-glass] body,

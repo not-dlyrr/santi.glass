@@ -37,7 +37,9 @@
      platform
      ------------------------------------------------------------------ */
   var IS_TAURI = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
+  var IS_ELECTRON = /\bElectron\//.test(navigator.userAgent);
   if (IS_TAURI) document.documentElement.setAttribute('data-tauri', '');
+  if (IS_ELECTRON) document.documentElement.setAttribute('data-electron', '');
 
   /* ------------------------------------------------------------------
      liquid glass setting: one system-wide switch, on by default.
@@ -70,6 +72,15 @@
     document.documentElement.setAttribute('data-glass', glassOn ? 'on' : 'off');
   }
   writeAttr();
+
+  // desktop apps outlive a settings change: follow the OS transparency switch
+  // (windows "transparency effects", macOS "reduce transparency") until the
+  // person picks a side in GlassToggle
+  try {
+    window.matchMedia('(prefers-reduced-transparency: reduce)').addEventListener('change', function (e) {
+      if (readStored() === null) setLiquidGlass(!e.matches, { persist: false });
+    });
+  } catch (e) {}
 
   function getLiquidGlass() {
     return glassOn;
@@ -104,9 +115,12 @@
   }
 
   /* ------------------------------------------------------------------
-     tauri: keep the native window material (mica / vibrancy) in step with
-     the liquid glass toggle. the rust side exposes a command (default name
-     set_liquid_glass) that applies or clears the effect; see docs/tauri.md.
+     window glass: keep the native window material (liquid glass, vibrancy,
+     mica, acrylic) in step with the toggle. the host applies it:
+       - tauri: a rust command (default set_liquid_glass), docs/tauri.md
+       - electron, or any other shell: window.santiGlassHost.setWindowGlass(on)
+         exposed by a preload / host object, docs/electron.md
+       - anything else: pass opts.set
      ------------------------------------------------------------------ */
   function tauriInvoke() {
     if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) return window.__TAURI__.core.invoke;
@@ -114,16 +128,30 @@
     return null;
   }
 
-  function syncTauriWindowGlass(opts) {
-    var command = (opts && opts.command) || 'set_liquid_glass';
-    var invoke = (opts && opts.invoke) || tauriInvoke();
-    if (!invoke) return function () {};
+  function windowGlassSetter(opts) {
+    opts = opts || {};
+    if (opts.set) return opts.set;
+    var invoke = opts.invoke || tauriInvoke();
+    if (invoke) {
+      var command = opts.command || 'set_liquid_glass';
+      return function (on) { return invoke(command, { on: on }); };
+    }
+    var host = window.santiGlassHost;
+    if (host && host.setWindowGlass) return function (on) { return host.setWindowGlass(on); };
+    return null;
+  }
+
+  function syncWindowGlass(opts) {
+    var set = windowGlassSetter(opts);
+    if (!set) return function () {};
     var root = document.documentElement;
     function apply(on) {
-      Promise.resolve(invoke(command, { on: on })).then(function () {
+      Promise.resolve().then(function () { return set(on); }).then(function () {
+        if (on !== glassOn) return; // a newer toggle already won
         if (on) root.setAttribute('data-window-glass', '');
         else root.removeAttribute('data-window-glass');
       }, function (err) {
+        if (on !== glassOn) return;
         root.removeAttribute('data-window-glass');
         console.warn('[santi.glass] window glass unavailable:', err);
       });
@@ -177,7 +205,20 @@
      ------------------------------------------------------------------ */
   var SVGNS = 'http://www.w3.org/2000/svg';
   var uid = 0;
-  var mapCache = {};
+  // each entry holds two full-size png data urls; a desktop window resized for
+  // hours would otherwise keep every size it ever passed through
+  var MAP_CACHE_MAX = 24;
+  var mapCache = new Map();
+
+  function mapKey(W, H, R, p) {
+    return [W, H, R, p.bezel, p.depth, p.ior, p.specular].join('|');
+  }
+
+  function cachedMaps(key) {
+    var hit = mapCache.get(key);
+    if (hit) { mapCache.delete(key); mapCache.set(key, hit); } // most recent last
+    return hit;
+  }
 
   var SVG_LENS = (function () {
     try {
@@ -193,8 +234,9 @@
   document.documentElement.setAttribute('data-lens', SVG_LENS ? 'refract' : 'blur');
 
   function buildMaps(W, H, R, p) {
-    var key = [W, H, R, p.bezel, p.depth, p.ior, p.specular].join('|');
-    if (mapCache[key]) return mapCache[key];
+    var key = mapKey(W, H, R, p);
+    var hit = cachedMaps(key);
+    if (hit) return hit;
 
     var bezel = Math.max(2, Math.min(p.bezel, Math.min(W, H) / 2 - 1));
     var cxm = W / 2, cym = H / 2;
@@ -265,7 +307,8 @@
     g1.putImageData(im1, 0, 0);
     g2.putImageData(im2, 0, 0);
     var out = { disp: c1.toDataURL('image/png'), spec: c2.toDataURL('image/png'), scale: scale };
-    mapCache[key] = out;
+    mapCache.set(key, out);
+    if (mapCache.size > MAP_CACHE_MAX) mapCache.delete(mapCache.keys().next().value);
     return out;
   }
 
@@ -530,13 +573,15 @@
     return w && hh ? [w, hh] : null;
   }
 
-  function initWebGPU(canvas) {
+  function initWebGPU(canvas, onLost) {
     if (!navigator.gpu) return Promise.reject(new Error('no webgpu'));
     return navigator.gpu.requestAdapter().then(function (adapter) {
       if (!adapter) throw new Error('no adapter');
       return adapter.requestDevice();
     }).then(function (device) {
       device.addEventListener('uncapturederror', function (e) { console.error('[santi.glass] webgpu:', e.error && e.error.message); });
+      // sleep / resume, a driver update or a laptop switching gpus drops the device
+      device.lost.then(function (info) { if (info.reason !== 'destroyed') onLost(); });
       var ctx = canvas.getContext('webgpu');
       if (!ctx) throw new Error('no webgpu context');
       var format = navigator.gpu.getPreferredCanvasFormat();
@@ -684,9 +729,21 @@
       gpu: null,
       raf: 0,
       dead: false,
+      visible: true,
       last: ''
     };
     var u = new Float32Array(UNIFORM_FLOATS);
+
+    // desktop shells often keep rendering a minimized or tray-hidden window
+    // (electron with backgroundThrottling off, webview2): skip every layout read
+    // and draw while the scene can't be seen
+    var io = window.IntersectionObserver ? new IntersectionObserver(function (list) {
+      R.visible = list[list.length - 1].isIntersecting;
+      if (R.visible) R.dirty = true;
+    }) : null;
+    if (io) io.observe(wrap);
+    function onVisibility() { if (!document.hidden) R.dirty = true; }
+    document.addEventListener('visibilitychange', onVisibility);
 
     function start(backend) {
       if (R.dead) { if (backend) backend.destroy(); return; }
@@ -699,16 +756,27 @@
     var tryGL = function () {
       try { start(initWebGL2(canvas)); } catch (e) { start(init2D(canvas)); }
     };
-    if (prefer !== 'webgl2' && navigator.gpu) {
-      initWebGPU(canvas).then(start, tryGL);
-    } else {
-      tryGL();
+    function boot() {
+      if (prefer !== 'webgl2' && navigator.gpu) initWebGPU(canvas, onGpuLost).then(start, tryGL);
+      else tryGL();
     }
+    function onGpuLost() {
+      if (R.dead) return;
+      console.warn('[santi.glass] webgpu device lost, restarting');
+      R.gpu = null;
+      boot();
+    }
+    // webgl2 keeps its canvas: hold the frame until the context comes back
+    function onGlLost(e) { e.preventDefault(); R.gpu = null; }
+    function onGlRestored() { if (!R.dead) tryGL(); }
+    canvas.addEventListener('webglcontextlost', onGlLost);
+    canvas.addEventListener('webglcontextrestored', onGlRestored);
+    boot();
 
     function frame() {
       if (R.dead) return;
       R.raf = requestAnimationFrame(frame);
-      if (!R.gpu) return;
+      if (!R.gpu || !R.visible || document.hidden) return;
       var W = wrap.clientWidth, H = wrap.clientHeight;
       if (!W || !H) return;
       var dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -810,6 +878,10 @@
       destroy: function () {
         R.dead = true;
         cancelAnimationFrame(R.raf);
+        if (io) io.disconnect();
+        document.removeEventListener('visibilitychange', onVisibility);
+        canvas.removeEventListener('webglcontextlost', onGlLost);
+        canvas.removeEventListener('webglcontextrestored', onGlRestored);
         wrap.removeEventListener('pointermove', move);
         wrap.removeEventListener('pointerleave', leave);
         if (R.gpu) R.gpu.destroy();
@@ -893,7 +965,12 @@
 
       var id = 'sg-lens-' + (++uid);
       var last = '';
-      function apply() {
+      var maps = null, exact = false, raf = 0, settle = 0;
+      // a live window resize reports a new size every frame. building maps is
+      // per-pixel work plus two png encodes, so while the size is moving the
+      // current maps are stretched to the new box (an attribute rewrite) and
+      // rebuilt exactly once it holds still
+      function apply(final) {
         var W = Math.round(layer.offsetWidth), H = Math.round(layer.offsetHeight);
         if (W < 4 || H < 4 || W * H > 1600000) return;
         var R = parseFloat(getComputedStyle(layer).borderTopLeftRadius) || 0;
@@ -901,11 +978,23 @@
         var p = readLensTokens(el);
         var frost = strong ? p.frostStrong : p.frost;
         var sig = [W, H, R, p.bezel, p.depth, p.ior, p.aberration, frost, p.specular, p.saturation].join('|');
-        if (sig === last) return;
+        if (sig === last && (exact || !final)) return;
+        var hit = cachedMaps(mapKey(W, H, R, p));
+        clearTimeout(settle);
+        if (hit || final || !maps) {
+          maps = hit || buildMaps(W, H, R, p);
+          exact = true;
+        } else {
+          exact = false;
+          settle = setTimeout(function () { apply(true); }, 160);
+        }
         last = sig;
-        writeFilter(id, W, H, buildMaps(W, H, R, p), p, frost);
+        writeFilter(id, W, H, maps, p, frost);
         layer.style.backdropFilter = 'url(#' + id + ')';
         layer.style.webkitBackdropFilter = 'url(#' + id + ')';
+      }
+      function schedule() {
+        if (!raf) raf = requestAnimationFrame(function () { raf = 0; apply(false); });
       }
       function move(e) {
         var r = el.getBoundingClientRect();
@@ -914,14 +1003,16 @@
       }
       function enter() { el.classList.add('is-lit'); }
       function leave() { el.classList.remove('is-lit'); }
-      apply();
-      var ro = new ResizeObserver(apply);
+      apply(true);
+      var ro = new ResizeObserver(schedule);
       ro.observe(el);
       el.addEventListener('pointermove', move);
       el.addEventListener('pointerenter', enter);
       el.addEventListener('pointerleave', leave);
       return function () {
         ro.disconnect();
+        cancelAnimationFrame(raf);
+        clearTimeout(settle);
         el.removeEventListener('pointermove', move);
         el.removeEventListener('pointerenter', enter);
         el.removeEventListener('pointerleave', leave);
@@ -1204,9 +1295,11 @@
     getLiquidGlass: getLiquidGlass,
     setLiquidGlass: setLiquidGlass,
     subscribeLiquidGlass: subscribeLiquidGlass,
-    syncTauriWindowGlass: syncTauriWindowGlass,
+    syncWindowGlass: syncWindowGlass,
+    syncTauriWindowGlass: syncWindowGlass, // older name, same function
     lensSupported: SVG_LENS,
     gpuSupported: { webgpu: !!navigator.gpu, webgl2: (function () { try { return !!document.createElement('canvas').getContext('webgl2'); } catch (e) { return false; } })() },
-    isTauri: IS_TAURI
+    isTauri: IS_TAURI,
+    isElectron: IS_ELECTRON
   });
 })();

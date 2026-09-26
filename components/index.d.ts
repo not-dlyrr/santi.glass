@@ -30,11 +30,22 @@ export interface GlassSceneProps extends React.HTMLAttributes<HTMLDivElement> {
 /** GPU-rendered backdrop; glass components inside it refract it with a WebGPU or WebGL2 shader. */
 export declare function GlassScene(props: GlassSceneProps): React.ReactElement;
 
-/** Tauri: calls the Rust command (default set_liquid_glass) now and whenever Liquid Glass changes. Returns an unsubscribe function. */
-export declare function syncTauriWindowGlass(opts?: { command?: string; invoke?: (cmd: string, args: { on: boolean }) => Promise<unknown> }): () => void;
+export interface WindowGlassOptions {
+  /** Any host: apply or clear the native window material. Wins over everything below. */
+  set?: (on: boolean) => unknown;
+  /** Tauri: the invoke function (found on its own when omitted). */
+  invoke?: (cmd: string, args: { on: boolean }) => Promise<unknown>;
+  /** Tauri: the Rust command name. Default set_liquid_glass. */
+  command?: string;
+}
+/** Keeps the native window material in step with Liquid Glass: now and whenever it changes. Uses opts.set, else Tauri's invoke, else window.santiGlassHost.setWindowGlass (Electron preload). Sets <html data-window-glass> on success. Returns an unsubscribe function. */
+export declare function syncWindowGlass(opts?: WindowGlassOptions): () => void;
+/** @deprecated same function as syncWindowGlass */
+export declare const syncTauriWindowGlass: typeof syncWindowGlass;
 export declare function subscribeLiquidGlass(fn: (on: boolean) => void): () => void;
 export declare const gpuSupported: { webgpu: boolean; webgl2: boolean };
 export declare const isTauri: boolean;
+export declare const isElectron: boolean;
 
 /** true where backdrop-filter: url() refraction renders (Chromium engines). */
 export declare const lensSupported: boolean;
@@ -96,8 +107,10 @@ export declare function TabBar(props: TabBarProps): React.ReactElement;
 
 declare global {
   interface Window {
+    /** Exposed by an Electron preload (or any host) so syncWindowGlass can reach the native side. */
+    santiGlassHost?: { setWindowGlass(on: boolean): unknown };
     SantiGlass: {
-      GlassToggle: typeof GlassToggle; GlassScene: typeof GlassScene; syncTauriWindowGlass: typeof syncTauriWindowGlass; subscribeLiquidGlass: typeof subscribeLiquidGlass; gpuSupported: typeof gpuSupported; isTauri: boolean; useLiquidGlass: typeof useLiquidGlass; getLiquidGlass: typeof getLiquidGlass; setLiquidGlass: typeof setLiquidGlass; useLens: typeof useLens; lensSupported: boolean;
+      GlassToggle: typeof GlassToggle; GlassScene: typeof GlassScene; syncWindowGlass: typeof syncWindowGlass; syncTauriWindowGlass: typeof syncWindowGlass; subscribeLiquidGlass: typeof subscribeLiquidGlass; gpuSupported: typeof gpuSupported; isTauri: boolean; isElectron: boolean; useLiquidGlass: typeof useLiquidGlass; getLiquidGlass: typeof getLiquidGlass; setLiquidGlass: typeof setLiquidGlass; useLens: typeof useLens; lensSupported: boolean;
       Button: typeof Button; GlassCard: typeof GlassCard; Switch: typeof Switch; SegmentedControl: typeof SegmentedControl;
       Slider: typeof Slider; SearchField: typeof SearchField; List: typeof List; ListRow: typeof ListRow; TabBar: typeof TabBar; Icon: typeof Icon;
     };

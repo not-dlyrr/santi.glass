@@ -22,7 +22,7 @@ I wanted my apps (santi.pass, santi.notes, and whatever comes next) to feel like
 - **12 React components**: `Button`, `GlassCard`, `GlassScene`, `GlassToggle`, `Switch`, `SegmentedControl`, `Slider`, `SearchField`, `List`, `ListRow`, `TabBar` and `Icon`.
 - **A liquid glass engine.** The edge of every glass surface bends whatever is behind it, splits it slightly into color, and catches a highlight. It's calculated per element instead of faked with a gradient.
 - **Shader glass.** Inside a `GlassScene`, the lens runs as a WebGPU shader (WebGL2 as a fallback), per pixel, with real color dispersion and a highlight that follows your cursor.
-- **Tauri support.** The native window material (Liquid Glass on macOS 26, Mica on Windows 11) follows the same switch as the in-app glass.
+- **Desktop apps.** In Tauri, Electron and other webview shells, the native window material (Liquid Glass or vibrancy on macOS, Mica on Windows 11) follows the same switch as the in-app glass. The engine is tuned for long-running windows: cheap live resizing, bounded memory, idle scenes that stop drawing, and recovery after sleep.
 - **A system-wide toggle** so people can turn the glass off. It's on by default.
 
 ## Quick start
@@ -111,9 +111,12 @@ h(SantiGlass.GlassScene, { backdrop: 'cover.jpg', style: { height: 420 } },
 
 Any glass component inside the scene switches to the shader automatically. It tries WebGPU first and falls back to WebGL2. Pass `live: true` for video or an animated canvas.
 
-### Tauri
+### Desktop apps
 
-There's a full guide in [docs/tauri.md](docs/tauri.md): the Rust command that turns the native window glass on and off, the config flags, and a one-line hook that keeps it in sync with the toggle.
+- **Tauri:** [docs/tauri.md](docs/tauri.md) has the Rust command that turns the native window glass on and off, the config flags, and the one-line hook that keeps it in sync with the toggle.
+- **Electron and other shells:** [docs/desktop.md](docs/desktop.md) has the preload and main-process code, the contract for any other host (Wails, WebView2, CEF), and what the engine does to stay fast in windows that stay open for hours.
+
+Either way, the page side is one call: `SantiGlass.syncWindowGlass()`.
 
 ### Browser support
 
@@ -127,9 +130,17 @@ You can check which one you got with `SantiGlass.lensSupported`, or the `data-le
 
 ## Fonts
 
-The type stacks ask for the system font first, which is SF Pro on macOS and iOS. Everywhere else, `tokens.css` loads the web fonts in `fonts/`: SF Pro Display, Text and Rounded in Regular, Medium, Semibold and Bold, as Latin-subset woff2 files (about 40 KB each). Keep `fonts/` next to `tokens.css` so the relative URLs resolve.
+The type stacks ask for the system font first, which is SF Pro on macOS and iOS. Everywhere else, `tokens.css` loads the web fonts in `fonts/`, all Latin-subset woff2:
 
-SF Mono isn't included, so code text falls back to Consolas or the platform monospace.
+| Family | File | Weights | Italic |
+| --- | --- | --- | --- |
+| SF Pro Text, SF Pro Display, SF Pro | `SF-Pro.woff2`, `SF-Pro-Italic.woff2` (variable) | 1 to 1000 | yes |
+| SF Pro Rounded | `SF-Pro-Rounded-*.woff2` | 100 to 900 | no (Apple doesn't make one) |
+| SF Mono | `SF-Mono-*.woff2` | 300 to 800 | yes |
+
+SF Pro is the variable font. It also has an optical-size axis, so the browser picks the Text cut at small sizes and the Display cut at 28px and up on its own. Any `font-weight` and `font-style: italic` renders a real face, never a synthesized one (except italic Rounded, which is slanted).
+
+Keep `fonts/` next to `tokens.css` so the relative URLs resolve. The whole folder is about 900 KB, and a browser only downloads the faces a page uses.
 
 ## Icons
 
@@ -141,7 +152,7 @@ On Apple platforms, use SF Symbols. Everywhere else, `Icon` covers the basics wi
 tokens.json               source of truth for every token
 tokens.css                generated, don't edit by hand
 scripts/build-tokens.mjs  tokens.json -> tokens.css
-fonts/                    SF Pro Display, Text, Rounded (woff2)
+fonts/                    SF Pro (variable + italic), SF Pro Rounded, SF Mono (woff2)
 components/
   bundle.js               all components + the glass engines (svg, webgpu, webgl2)
   bundle.css              component styles
@@ -149,6 +160,8 @@ components/
   <Component>/README.md   when and how to use each component
   <Component>/preview.html  live preview
 docs/tauri.md             Tauri setup: window glass + shader glass
+docs/desktop.md           Electron and other shells, desktop performance notes
+AGENTS.md                 working rules for coding agents
 GUIDELINES.md             the full design rules (color, type, glass, motion...)
 ```
 

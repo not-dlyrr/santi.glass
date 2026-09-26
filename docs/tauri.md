@@ -132,15 +132,17 @@ Wrap your app in `sg-window` and hook the toggle up to the command once at start
 
 ```js
 // runs set_liquid_glass now and every time the toggle changes
-SantiGlass.syncTauriWindowGlass();
+SantiGlass.syncWindowGlass();
 ```
 
-`syncTauriWindowGlass` finds Tauri's `invoke` on its own. If you'd rather pass it in, or you renamed the command:
+`syncWindowGlass` finds Tauri's `invoke` on its own. If you'd rather pass it in, or you renamed the command:
 
 ```js
 import { invoke } from '@tauri-apps/api/core';
-SantiGlass.syncTauriWindowGlass({ invoke, command: 'set_liquid_glass' });
+SantiGlass.syncWindowGlass({ invoke, command: 'set_liquid_glass' });
 ```
+
+`syncTauriWindowGlass` still works; it's the old name for the same function.
 
 When the Rust side succeeds, `<html data-window-glass>` is set and `sg-window` turns transparent, so the native material shows through. If it fails (Linux, or glass turned off), the attribute comes off and the window keeps its solid `surface-grouped` background.
 
@@ -163,3 +165,7 @@ h(GlassScene, { backdrop: albumArtUrl, style: { height: 420 } },
 - The shader refracts the backdrop, not DOM content inside the scene. Float glass over the backdrop itself, not over other HTML.
 
 Remote images need CORS headers (or use Tauri's asset protocol via `convertFileSrc`), otherwise the GPU can't read them.
+
+## 4. Performance
+
+Live window resizing, the bounded lens cache, pausing hidden scenes and GPU-loss recovery are all built in. They're described in [desktop.md](desktop.md#performance-in-long-running-windows), which also covers Electron and other webview shells.
